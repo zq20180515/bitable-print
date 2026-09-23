@@ -1,0 +1,4655 @@
+/**
+ * 在线模板编辑器样式。
+ *
+ * 全部颜色走 tokens.css 的 CSS 变量，禁止硬编码十六进制 —— 否则暗黑模式必然出问题（PRD F7-06）。
+ * 唯一的例外是"内容色"：字段类型色块（fieldMeta(type).tint）、字色/线色/框线色色板、
+ * 纸张白底。这些是**会被打印出来的数据**，不是插件 UI 主题，必须写死。
+ *
+ * 布局形态由根节点的 [data-layout] 决定（EditorShell 用 ResizeObserver 量自身容器宽度写入）：
+ *   wide  ≥900px  三栏：左插入面板 224 + 画布 + 右属性面板 288
+ *   mid   640–900 两栏：画布 + 左侧单面板 272
+ *   narrow <640px 单栏：画布 + 底部抽屉（约 38%，抓手可收起）
+ *
+ * 侧边栏最窄只有 320px，因此：
+ * - 所有 flex/grid 子项一律 min-width: 0，长文本 text-overflow: ellipsis；
+ * - 不用 <table> 做页面布局，一律单列 Grid；
+ * - ≤360px 时两列栅格降级为单列。
+ *
+ * 另外：纸面上的装饰色不走主题令牌（见 .bp-paper 里的 --pp-* 说明），
+ * 因为纸张在暗黑模式下依然是白纸。
+ */
+
+.bp-editor {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg-page);
+  color: var(--text-1);
+}
+
+/* ============================================================
+   顶栏
+   ============================================================ */
+
+.bp-top {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.bp-top__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.bp-top__row--sub {
+  gap: var(--sp-2);
+}
+
+.bp-top__spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.bp-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+}
+
+.bp-name:hover {
+  background: var(--surface-hover);
+}
+
+.bp-name__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-md);
+}
+
+.bp-iconbtn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+
+.bp-iconbtn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+.bp-iconbtn:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.bp-iconbtn:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.bp-iconbtn--sm {
+  width: 22px;
+  height: 22px;
+}
+
+/* 宽屏三栏的面板开合开关：开 == 实心强调，关 == 纯图标 */
+.bp-iconbtn--toggle.is-on {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.bp-iconbtn--danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.bp-iconbtn:focus-visible,
+.bp-btn:focus-visible,
+.bp-tabs__item:focus-visible,
+.bp-seg__item:focus-visible,
+.bp-minibtn:focus-visible,
+.bp-tgl:focus-visible,
+.bp-picker:focus-visible,
+.bp-linkbtn:focus-visible,
+.bp-chip-item:focus-visible,
+.bp-el-item:focus-visible,
+.bp-zoomctl__step:focus-visible,
+.bp-zoomctl__value:focus-visible,
+.bp-issue:focus-visible,
+.bp-drawer__grab:focus-visible,
+.bp-color__dot:focus-visible,
+.bp-color__native:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.bp-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+
+.bp-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.bp-btn:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.bp-btn:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.bp-btn--primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-weight: var(--fw-medium);
+}
+
+.bp-btn--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.bp-btn--primary:active:not(:disabled) {
+  background: var(--accent-active);
+}
+
+.bp-btn--primary:disabled {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  opacity: 0.45;
+}
+
+.bp-tabs {
+  flex: 1 1 auto;
+  display: flex;
+  min-width: 0;
+  padding: 2px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.bp-tabs__item {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+
+.bp-tabs__item:hover:not(.is-active) {
+  color: var(--text-1);
+}
+
+.bp-tabs__item.is-active {
+  background: var(--surface);
+  color: var(--text-1);
+  font-weight: var(--fw-medium);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 宽屏顶栏第二行：面板开关 + 版心摘要 */
+.bp-top__meta {
+  min-width: 0;
+  margin-left: var(--sp-1);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-top__sep {
+  margin: 0 5px;
+  color: var(--text-4);
+}
+
+/* ============================================================
+   缩放控件：[−] [ 62% ▾ ] [+]
+   ============================================================ */
+
+.bp-zoomctl {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.bp-zoomctl__step {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+
+.bp-zoomctl__step:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+.bp-zoomctl__step:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.bp-zoomctl__step:disabled {
+  color: var(--text-4);
+  cursor: not-allowed;
+}
+
+.bp-zoomctl__value {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 62px;
+  height: 100%;
+  padding: 0 4px 0 6px;
+  border: 0;
+  border-left: 1px solid var(--line-faint);
+  border-right: 1px solid var(--line-faint);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+
+.bp-zoomctl__value:hover {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+.bp-zoomctl__value.is-open {
+  color: var(--text-1);
+}
+
+.bp-zoomctl__pct {
+  flex: 1 1 auto;
+  min-width: 30px;
+  text-align: right;
+}
+
+.bp-zoomctl__caret {
+  flex: none;
+  display: inline-flex;
+  color: var(--text-3);
+  transition: transform var(--t-fast);
+}
+
+.bp-zoomctl__caret.is-open {
+  transform: rotate(180deg);
+}
+
+/* ============================================================
+   画布
+   ============================================================ */
+
+/* ============================================================
+   主体：侧栏 + 画布
+   ============================================================ */
+
+.bp-body {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.bp-side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--surface);
+}
+
+.bp-side--left {
+  border-right: 1px solid var(--line);
+}
+
+.bp-side--right {
+  border-left: 1px solid var(--line);
+}
+
+/* 宽屏：左 216 / 右 280，剩下的全给画布 */
+[data-layout='wide'] .bp-side--left {
+  width: 216px;
+}
+
+[data-layout='wide'] .bp-side--right {
+  width: 280px;
+}
+
+/* 中屏：只有左侧单面板。窗口本身就只有 720–1120，面板再宽画布就没得看了 */
+[data-layout='mid'] .bp-side--left {
+  width: 248px;
+}
+
+.bp-side__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+  height: 34px;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  border-bottom: 1px solid var(--line-faint);
+}
+
+.bp-side__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-side__head .bp-seg {
+  flex: 1 1 auto;
+}
+
+.bp-side__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.bp-canvas-area {
+  position: relative;
+  flex: 1 1 auto;
+  /* 画布有个下限：容器很矮时优先让抽屉/侧栏让位，而不是把纸压成一条缝（宿主可能是很矮的内嵌窗口） */
+  min-height: 170px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.bp-canvas {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  /* 纸张四周留白由容器按断点注入：宽屏给足"工作台"，窄屏尽量把纸让出来 */
+  padding: var(--bp-canvas-pad, 10px);
+  overflow: auto;
+  /* 纸张之外的"桌面"：中性灰，对应 PRD 的"页边缘外区域灰色遮罩"。
+     用 --paper-canvas-bg 而不是写死灰值，暗黑模式下它才是深色。 */
+  background: var(--paper-canvas-bg);
+}
+
+.bp-canvas.is-drop-active {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 这一下会被拒绝：整张纸换成"禁止"的红边，配 .bp-drop-hint.is-reject 把理由写出来 */
+.bp-paper.is-drop-reject {
+  box-shadow: var(--shadow-md), 0 0 0 2px var(--danger);
+}
+
+.bp-paper-outer {
+  position: relative;
+  margin: 0 auto;
+}
+
+.bp-paper {
+  position: relative;
+  transform-origin: top left;
+  background: var(--paper);
+  color: var(--paper-ink);
+  box-shadow: var(--shadow-md), 0 0 0 1px var(--line-faint);
+
+  /*
+   * 纸面专用色。
+   *
+   * 纸张在任何主题下都是白纸（要模拟真实打印），但 --line-faint / --surface-2 这些
+   * UI 令牌在暗黑模式下会翻成白色/深灰 —— 白纸上的白描边会整片消失、深灰块会变成脏斑。
+   * 这几个值属于本文件开头声明的"内容色"例外（和字段类型色块、色板同一性质），
+   * 因此在这里写死，并只作用于 .bp-paper 内部。
+   */
+  --pp-line: rgba(31, 35, 41, 0.14);
+  --pp-line-faint: rgba(31, 35, 41, 0.07);
+  --pp-ink-mute: #8f959e;
+  --pp-surface: #ffffff;
+  --pp-surface-2: #f5f6f7;
+
+  /*
+   * 网格线。**和 --pp-line / --paper-line 刻意分开**：
+   * 网格是参考线，内容线才是内容。两者共用一个令牌时，"没设过线色的表格"（兜底 --paper-line）
+   * 画出来和网格几乎同色 —— 用户反馈"表格边框和内部的线条都不清晰，和网格重合了，无法区分"，
+   * 根子就在这儿共用了一个色。现在网格更淡、表格线更深（表格兜底 #d0d3d9，与前程一致）。
+   */
+  --pp-grid-line: rgba(31, 35, 41, 0.1);
+
+  /*
+   * 页边距区（不打印）与版心边界（打印区）。
+   *
+   * 为什么要单独两个令牌，不复用 --pp-line-faint / --pp-line：
+   * 那两个色还挂在 .bp-el-oob（超纸斜纹，PRD F2-14）和 .bp-el-attach__ph 上，
+   * 调它们会顺带改掉那两处的观感 —— 这就是"同一个量两处各写一套"的镜像错误：
+   * **一个量被三处共用，改一处连带改三处**。谁的地方谁出令牌。
+   *
+   * 原来的值是 --pp-line-faint(0.07) / --pp-line(0.14)：页边距带合成出来是
+   * rgb(239,240,240)，对白纸 1.14:1 —— 铺在纸上肉眼基本看不见，用户因此把
+   * 纸面下半截读成"多出来的空白画布"（反馈 ⑪ 的原话是"底部多出一部分超出画布的
+   * 网格区域…删除这些超出的部分"）。**网格位置本来就是对的**（网格底边离纸张底边
+   * 正好一个下页边距），缺的是"哪里能印、哪里不能印"这件事本身没有说出口。
+   *
+   * 实测（对白纸的复合色 / WCAG 对比度；读数与量法见 _geom-margin.mjs）：
+   *   网格线     --pp-grid-line   0.10 → rgb(233,233,233)  1.24:1
+   *   页边距带   --pp-margin-band 0.14 → rgb(224,224,225)  1.32:1   ← 改前 0.07，1.14:1（几乎看不见）
+   *   版心边界   --pp-content-edge 0.34 → rgb(179,180,182) 2.07:1   ← 改前 0.14，1.32:1（糊的）
+   *
+   * 版心边界是这里**唯一**一条比"内容线兜底 #d0d3d9"还深的装饰。
+   * 允许它越级，是因为它是**虚线**：内容线一律实线，"虚"本身就把两者分开了，
+   * 不会被误读成表格边框。换来的是"哪里能印"一眼可见 —— 这正是用户要的那句交代。
+   */
+  --pp-margin-band: rgba(31, 35, 41, 0.14);
+  --pp-content-edge: rgba(31, 35, 41, 0.34);
+
+  /*
+   * 元素占位框（需求 ⑩）。未选中时也画，让用户一眼看出"这块地方被占了"、从而看出有没有重叠。
+   *
+   * 刻意比网格线深、比表格兜底线的 #d0d3d9 浅：它是**提示**，不该和内容线抢注意力。
+   * 落在白纸上约 rgb(213,214,216)，与白纸 1.36:1 —— 看得见轮廓，但不会像"线"。
+   */
+  --pp-el-frame: rgba(31, 35, 41, 0.19);
+
+  /*
+   * 分区带的标签条（2026-09-22）。
+   *
+   * 默认灰：`--pp-band-bar` 只有 0.055 的黑 —— 落在白纸上约 rgb(241,241,242)，
+   * 比网格线(233)还淡。这是刻意的：一条 18px 高的横条会**横穿整页**，
+   * 做深了就是在纸上画了一道横线，正文会被它抢注意力。
+   * 当前所在区用暖橙（和"循环区"的历史色一致），配上 `--pp-band-bar-active-ink` 才看得清文字。
+   *
+   * ⚠️ 这几个值属于"纸张内容色"（白纸上的装饰），随主题翻转会出问题（暗色下白纸上刷白条），
+   *    所以和 `--pp-line` 一族一样**写死在这里**，只作用于 `.bp-paper` 内部。
+   */
+  --pp-band-bar: rgba(31, 35, 41, 0.055);
+  --pp-band-bar-ink: #6b7076;
+  --pp-band-bar-line: rgba(31, 35, 41, 0.18);
+  --pp-band-bar-active: rgba(230, 132, 0, 0.13);
+  --pp-band-bar-active-ink: #a25c00;
+  --pp-band-bar-active-line: rgba(224, 124, 0, 0.6);
+
+  /*
+   * 重叠区（需求 ⑩）。用暖红而不是强调蓝：蓝色在这张纸上已经表示"选中/可操作"，
+   * 重叠是一个**要用户注意**的状态，必须和"选中"一眼分得开。
+   */
+  --pp-overlap: rgba(206, 58, 58, 0.14);
+  --pp-overlap-line: rgba(206, 58, 58, 0.5);
+}
+
+/* 纸张内的装饰层一律不吃鼠标事件，否则点空白处无法取消选中 */
+.bp-margin,
+.bp-content-box,
+.bp-grid,
+.bp-band,
+.bp-band__divider,
+.bp-drop-hint,
+.bp-el-oob,
+.bp-el-warn {
+  pointer-events: none;
+}
+
+/*
+ * 页边距区（不打印）。
+ *
+ * 纯装饰：position:absolute + pointer-events:none（见上面的共用规则），
+ * 不参与任何盒模型计算 —— 网格位置、元素几何、手柄命中判定一个都不碰。
+ * 底色令牌是它专属的 --pp-margin-band（理由见 .bp-paper 里那段注释）。
+ */
+.bp-margin {
+  position: absolute;
+  background: var(--pp-margin-band);
+}
+
+/*
+ * 页边距带的说明（2026-09-18 用户追问后补）。
+ *
+ * 页边距 = **印不出来**的那一圈。以前这里只有一块淡底色、没有一个字，
+ * 于是用户只能把"这块印不出来"归因到画布上唯一看得见的标记（循环区那根橙线）上 ——
+ * 而橙线与能否打印**毫无关系**。
+ * 现在让这一圈自己把话说了：既能解释"为什么印不出来"，也顺手告诉用户怎么让它能印（页边距整档选 0）。
+ * `pointer-events: none` 继承自 `.bp-margin` 的共用规则，不会挡点击。
+ */
+.bp-margin__label {
+  position: absolute;
+  left: 6px;
+  bottom: 2px;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 12px);
+}
+
+/*
+ * 页边距丈量线（2026-09-19 用户要求：红线丈量 + 显示数值 + 点击可改）。
+ *
+ * 用**红色**是要与"可打印区（灰虚线）"和"循环区（橙括弧）"区分开：
+ * 红 = 这是一个**可操作的尺寸标注**，不是版式装饰。
+ *
+ * 元素是 `<button>` 而不是 `<div>`：
+ * 它本来就要被点（点开改数值），用按钮才能免费拿到键盘可达性（Tab / Enter）与焦点环。
+ * 代价是要把按钮自带的边框/底色/padding 全部清掉 —— 见下。
+ *
+ * ⚠️ 它**不在** `.bp-content-box` 那一批 `pointer-events:none` 的名单里：
+ * 那些是纯装饰（不能吃点击），这个是**可交互**的，必须能接指针。
+ */
+.bp-margin-rule {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  /* 细线本身几乎点不到，给一个透明加宽层当命中区（视觉不变、手感变好） */
+  outline-offset: 2px;
+}
+
+.bp-margin-rule--top,
+.bp-margin-rule--bottom {
+  height: 0;
+  border-top: 1px dashed var(--danger);
+}
+
+.bp-margin-rule--left,
+.bp-margin-rule--right {
+  width: 0;
+  border-left: 1px dashed var(--danger);
+}
+
+/* 加宽命中区：线还是 1px，但纵向/横向各多 6px 可点 */
+.bp-margin-rule--top,
+.bp-margin-rule--bottom {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.bp-margin-rule--left,
+.bp-margin-rule--right {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.bp-margin-rule:hover {
+  border-color: var(--danger);
+  filter: brightness(1.25);
+}
+
+/*
+ * 数值标签。
+ *
+ * `translate(-50%, -50%)` 把它压在**线的中点**；四条边各用 `--from-*` 微调，
+ * 让标签落在**页边距那一侧的空处**，不压住版心里的内容。
+ */
+.bp-margin-rule__chip {
+  position: absolute;
+  padding: 0 4px;
+  border-radius: var(--r-xs);
+  background: var(--danger);
+  color: var(--surface);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  white-space: nowrap;
+  /*
+   * ⚠️⚠️ 这里必须是 `auto`（原来是 `none`）。
+   *
+   * 它是 `<button>`，`onClick` 里要进"原地编辑"状态。写成 `none` 之后**真实鼠标永远点不到它**
+   * —— 命中测试直接穿透到 `.bp-paper`，只有 `el.click()` 那种绕过命中测试的调用还能触发，
+   * 于是"代码写了、单测/脚本绿了、真机点了没反应"。
+   *
+   * 用户原话（2026-09-23 第 5 条）：「顶部的页边距，点击没反应，鼠标移动到页边距数字下方，
+   * 才会看到有所变化，但还是无法编辑」——"数字下方"那点变化正是父元素 `.bp-margin-rule`
+   * 的 `:hover`（有 6px 加宽命中区），而标签自己吃不掉点击。
+   *
+   * 它落在页边距带里（不打印的那一圈），不压正文，吃掉指针没有副作用。
+   */
+  pointer-events: auto;
+}
+
+.bp-margin-rule--left .bp-margin-rule__chip {
+  left: -6px;
+  top: 50%;
+  transform: translate(-100%, -50%) rotate(0deg);
+}
+.bp-margin-rule--right .bp-margin-rule__chip {
+  left: 6px;
+  top: 50%;
+  transform: translate(0, -50%);
+}
+.bp-margin-rule--top .bp-margin-rule__chip {
+  top: -6px;
+  left: 50%;
+  transform: translate(-50%, -100%);
+}
+.bp-margin-rule--bottom .bp-margin-rule__chip {
+  top: 6px;
+  left: 50%;
+  transform: translate(-50%, 0);
+}
+
+/* 版心边界（打印区）。同样只改色，不动几何。 */
+.bp-content-box {
+  position: absolute;
+  border: 1px dashed var(--pp-content-edge);
+}
+
+/*
+ * 让内容撑满声明框（2026-09-19，修"蓝色选区比内容大一圈"）。
+ *
+ * 为什么需要：`.bp-el` 用的是 `min-height`（与打印侧 `render/html.ts` 同口径），
+ * 所以**声明高 > 内容自然高**时，外壳比内容高 ⇒ 蓝框看着比里面的东西大。
+ * 用户报的表格 / 二维码 / 条形码 / 附件全中。
+ *
+ * 做法：把外壳变成**纵向 flex**，唯一的内容子元素 `flex:1 1 auto` ⇒
+ * 它会被拉到外壳的（min-）高度，**内容与框从此同高**。
+ *
+ * 为什么不是把外壳改成硬 `height`：那会让画布与打印的语义再次分叉
+ * （打印是 min-height，内容超出时会把盒子撑开）—— 那正是上一轮刚修好的 #8。
+ * 用 flex 拉伸，外壳语义不变、内容补上差距，两边仍然一致。
+ *
+ * 只挂给 `FILL_KINDS`（表格/二维码/条形码/附件/图片）：
+ * 文本类的高度本来就由行盒决定（实测差 0.1~0.9px），拉它反而会把单行文字拽到框底、改变基线。
+ */
+.bp-el--fill {
+  display: flex;
+  flex-direction: column;
+}
+
+.bp-el--fill > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 表格：行分摊多出来的高度，所以「拖底边」现在真的会让表格变高（以前只改框、行不动） */
+.bp-el--fill > .bp-el-table {
+  height: 100%;
+}
+
+/*
+ * 「可打印区」常驻标签（2026-09-18 真机反馈后补）。
+ *
+ * 为什么必须有：用户把**左边那条橙线**当成了打印范围 —— 那条其实是**循环区**的括弧标记
+ * （`.bp-band--loop .bp-band__bracket`），结构上永远到不了版心底边
+ * （`computeBandLayout` 要给表尾区留至少 40mm）。
+ * 而真正的可打印边界（本条）以前只有一圈**几乎看不见的灰虚线**，
+ * 于是"元素在画布内却印不出来"必然被当成 bug。
+ *
+ * 挂在虚线的**左下角外侧**：不压住版式内容，又贴着它要说明的那条线。
+ * 用 `pointer-events: none` 继承自上面的共用规则（`.bp-content-box` 已在名单里）。
+ */
+.bp-content-box__label {
+  position: absolute;
+  left: 0;
+  bottom: -1.35em;
+  padding: 0 4px;
+  border-radius: var(--r-xs);
+  background: var(--pp-content-edge);
+  color: var(--surface);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/*
+ * 版心网格。
+ *
+ * 用**一层 CSS 背景**画，不是几百个 DOM 节点：一张 A4 在 5mm 间距下就是 42×60 条线，
+ * 铺成 DOM 会让画布的节点数涨两个数量级，拖动时每一帧都在重排。
+ *
+ * 位置与 background-size 由 Canvas 按 gridMm 内联给出（原点就是版心左上角），
+ * 所以"吸附到 gridMm 整数倍"的落点必然落在可见的线上。
+ *
+ * 分层：网格用**自己的**令牌 --pp-grid-line（比内容线淡），再叠一层 opacity 让它整体退到背景。
+ * 综合下来有效不透明度 = 0.1 × 0.5 = 0.05，落在白纸上约 rgb(244,244,244)，与白纸比 1.10:1 ——
+ * 是"淡淡的底纹"而不是"线条"。
+ * 内容线一律比它深：新表格 #8f959e（rgb(143,149,158)）比白纸 3.02:1，
+ * 和网格之间相差 2.74:1；最浅的兜底 #d0d3d9 也有 1.50:1，仍比网格深。
+ * 改前是另一回事：网格 0.12@0.7（rgb(236,236,236)），新拖入的表格线 #c9cdd4 ——
+ * 两者只差 1.35:1，肉眼就是"重合了、无法区分"。
+ */
+.bp-grid {
+  position: absolute;
+  background-image:
+    linear-gradient(to right, var(--pp-grid-line) 0 1px, transparent 1px),
+    linear-gradient(to bottom, var(--pp-grid-line) 0 1px, transparent 1px);
+  opacity: 0.5;
+}
+
+/* 选中元素时网格再淡一档：此时用户的注意力在"我在摆的这个东西"上，
+   参考线不该和它抢注意力。默认态（没选中）已经能和表格线分开了，这一步只是锦上添花。 */
+.bp-paper.is-element-selected .bp-grid {
+  opacity: 0.24;
+}
+
+/* ---------------- 分区带标签条（2026-09-22 重做） ----------------
+ *
+ * 一条带 = 一条 **18px 高的横条**（在带的顶部），不是铺满整区的底色。
+ * 理由：铺满会盖住正文 —— 历史上因为"底色盖住正文"专门回退过一次（见 Canvas 里那段注释）。
+ * 位置由 `band-bars.ts` 的纯函数算好（含"空分区不画条"与"两条挤在一起就下推"），
+ * 这里只管长相。所有尺寸乘 `--bp-inv`(=1/缩放)，保证屏幕上视觉尺寸恒定。
+ */
+.bp-band {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: calc(5px * var(--bp-inv, 1));
+  padding: 0 calc(7px * var(--bp-inv, 1));
+  border-top: 1px dashed var(--pp-band-bar-line);
+  border-bottom: 1px dashed var(--pp-band-bar-line);
+  background: var(--pp-band-bar);
+  color: var(--pp-band-bar-ink);
+  font-size: calc(10px * var(--bp-inv, 1));
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* 当前所在的分区（= 选中元素所在的那个区）：暖橙高亮，一眼知道"我现在在循环区" */
+.bp-band.is-active {
+  background: var(--pp-band-bar-active);
+  border-color: var(--pp-band-bar-active-line);
+  color: var(--pp-band-bar-active-ink);
+}
+
+/* ---------------- 三个分区的**范围框**（2026-09-23 真机反馈第 11 条） ----------------
+ *
+ * 用户原话：「三个分区的范围也不明显，无法一眼看出」。
+ * 细标签条只说"叫什么"，说不出"从哪到哪"；范围框补的就是这一句。
+ *
+ * ⚠️ **不填底色**：铺满整区会压住正文，这个项目在这一点上回退过一次
+ *    （见 `.bp-band` 的历史注释）。虚线框不遮内容，却能一眼看出"这三块"。
+ * ⚠️ `pointer-events: none`：它是标示层，绝不能吃掉单元格/元素的点击 ——
+ *    那会让"表格点不动"，比"范围不明显"严重得多。
+ * ⚠️ 颜色刻意压得很轻（--pp-line）：它是**参考线**，不该和正文抢注意力。
+ */
+.bp-band__area {
+  position: absolute;
+  border: 1px dashed var(--pp-line);
+  border-radius: calc(3px * var(--bp-inv, 1));
+  pointer-events: none;
+}
+
+/* 循环区那一条给点"分水岭"的暗示（与下方那条橙色分界线同一套语义） */
+.bp-band__area--loop {
+  border-color: color-mix(in srgb, var(--warning) 45%, transparent);
+}
+
+/* 当前所在分区：跟着标签条一起亮，强化"我现在在哪一区" */
+.bp-band__area.is-active {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* 被"防重叠"下推过的标签条：不是真实边界（真实边界另有虚线），弱化一下 */
+.bp-band.is-shifted {
+  border-bottom-style: dotted;
+}
+
+.bp-band__title {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(5px * var(--bp-inv, 1));
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-band__dot {
+  flex: none;
+  width: calc(6px * var(--bp-inv, 1));
+  height: calc(6px * var(--bp-inv, 1));
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/*
+ * 左侧竖排标签：三条**都要有**（含空分区）—— 用户要的正是"一眼看出有三个区、我在哪一个"。
+ * 竖排是这里唯一不挤的排法：页边距槽只有 ~30px 宽，横排放不下四个汉字。
+ * ⚠️ 类名保留 `.bp-band__chip`：`test/editor-interaction.mjs` 按它取版式区标签（非门禁脚本，但不该白断）。
+ */
+.bp-band__gutter {
+  position: absolute;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.bp-band__chip {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  max-height: 100%;
+  padding: calc(4px * var(--bp-inv, 1)) calc(1px * var(--bp-inv, 1));
+  border: 1px solid var(--pp-band-bar-line);
+  border-radius: calc(3px * var(--bp-inv, 1));
+  background: var(--pp-band-bar);
+  color: var(--pp-band-bar-ink);
+  font-size: calc(9px * var(--bp-inv, 1));
+  line-height: 1;
+  letter-spacing: calc(1px * var(--bp-inv, 1));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-band__gutter.is-active .bp-band__chip {
+  background: var(--pp-band-bar-active);
+  border-color: var(--pp-band-bar-active-line);
+  color: var(--pp-band-bar-active-ink);
+}
+
+/* 分区之间的真实分界线（标签条可能被下推，真实边界只能靠它说） */
+.bp-band__divider {
+  position: absolute;
+  height: 0;
+  border-top: 1px dashed var(--pp-band-bar-line);
+}
+
+.bp-band__divider.is-loop {
+  border-top-color: var(--pp-band-bar-active-line);
+}
+
+/*
+ * 表尾区的落点说明：打印时整区贴着版心底部，画布却按"版式区自上而下"画在自己的分界线之下。
+ * 位置对不上就必须留在纸面上说清楚，所以它是一条**常驻**的小字，不是 tooltip
+ * （tooltip 要悬停才看得见，等于没说）。字号同样反向缩放，屏幕上恒定约 9px；
+ * 它被放在表尾元素下方（footerReserveMm 之外），不会压住任何内容。
+ */
+.bp-band__note {
+  position: absolute;
+  padding: calc(1px * var(--bp-inv, 1)) calc(5px * var(--bp-inv, 1));
+  border: 1px solid var(--pp-line);
+  border-radius: calc(3px * var(--bp-inv, 1));
+  background: var(--pp-surface-2);
+  color: var(--pp-ink-mute);
+  font-size: calc(9px * var(--bp-inv, 1));
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/*
+ * 拖到版式区上边界、已经推不动了：位置不动，但画面必须有反应。
+ * 描边给"到头了"这件事一个可见的落点，小标解释为什么不动。
+ */
+.bp-el.is-pinned {
+  outline: 1.5px dashed var(--warning);
+  outline-offset: 1px;
+}
+
+.bp-el-pin {
+  position: absolute;
+  right: calc(2px * var(--bp-inv, 1));
+  top: calc(-15px * var(--bp-inv, 1));
+  padding: calc(1px * var(--bp-inv, 1)) calc(5px * var(--bp-inv, 1));
+  border: 1px solid var(--warning);
+  border-radius: calc(3px * var(--bp-inv, 1));
+  background: var(--pp-surface-2);
+  color: var(--pp-ink-mute);
+  font-size: calc(9px * var(--bp-inv, 1));
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.bp-drop-hint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  padding: calc(3px * var(--bp-inv, 1)) calc(8px * var(--bp-inv, 1));
+  transform: translate(-50%, -50%);
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: calc(10px * var(--bp-inv, 1));
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+}
+
+/* 松手会"放进单元格"：提示换成成功色，和普通插入区分开 */
+.bp-drop-hint.is-into {
+  background: var(--success);
+}
+
+/*
+ * 松手会被拒绝。
+ *
+ * 这条提示是这个项目里反复出现的一类问题的解药：用户说"拖了没反应"。
+ * 所以拒绝时必须**当场、可见、带理由**，不能只是静默弹回原位。
+ * max-width + 换行是为了让理由（含被撞元素的名字）完整显示，不被裁掉。
+ */
+.bp-drop-hint.is-reject {
+  max-width: calc(360px * var(--bp-inv, 1));
+  background: var(--danger);
+  color: #fff;
+  white-space: normal;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.bp-canvas-empty {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(100% - 40px);
+  max-width: 300px;
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  transform: translate(-50%, -50%);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text-2);
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+}
+
+.bp-canvas-empty__title {
+  margin: 0 0 2px;
+  color: var(--text-1);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+}
+
+.bp-canvas-empty__text {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+/* ============================================================
+   画布元素
+   ============================================================ */
+
+.bp-el {
+  position: absolute;
+  min-width: 0;
+  cursor: move;
+  user-select: none;
+  /*
+   * 占位框**常显**（需求 ⑩）：以前只有选中时才画框，未选中只显示元素名，
+   * 于是"两个元素叠上了"在画布上完全看不出来（而重叠现在是允许的，见需求 ⑨）。
+   *
+   * 用 outline 而不是 border：border 会改变盒模型尺寸，而这个文件里所有几何
+   * （命中测试 / 手柄落点 / 列宽占比 / 落点吸附）都是按 border-box 读 getBoundingClientRect
+   * 算出来的，盒子一动就全错。outline 不占空间、不参与布局。
+   */
+  outline: 1px solid var(--pp-el-frame);
+  outline-offset: 0;
+}
+
+/*
+ * 选中态自己置顶。
+ *
+ * 这里以前没有 z-index，层叠完全由 DOM 顺序决定（= 版式区里的元素排列顺序）。
+ * 后果是"后来画的元素盖住前面元素的四个角手柄"：把「备注」拖到后画的签字行上重叠，
+ * 再拖那个被盖住的角手柄 → 完全没反应。用户报过的"拖动不可用"很多就是这种静默失效，
+ * 而不是拖动逻辑本身坏了。
+ *
+ * 提到 2 而不是更大：它只需要压过同一层里 z-index:auto 的兄弟元素（0），
+ * 不必去和纸面上的网格/版心线/版式区标记（都更早绘制、且在纸的层叠上下文里）抢层级。
+ */
+.bp-el.is-selected {
+  z-index: 2;
+  outline: 1.5px solid var(--accent);
+  outline-offset: 0;
+  /* 选中时给一点点提亮，让它在密集的表格里也能一眼找到，但不改变正文观感 */
+  background: var(--accent-soft);
+}
+
+/*
+ * 重叠区（需求 ⑩）。元素之间允许重叠之后（需求 ⑨），这是"哪里叠了"的唯一提示。
+ *
+ * 两条硬约束：
+ *   1. `pointer-events: none` —— 重叠区常常正好压在两个元素中间那块最想抓的地方，
+ *      收鼠标事件就等于把拖动挡掉了；
+ *   2. 不挂 z-index —— 它排在所有 `.bp-el` 之后，压在未选中的元素之上；选中元素
+ *      自带 `z-index: 2`，会盖住它（故意的：选中态的框与 8 个手柄不能被一层底色糊住）。
+ *
+ * 为什么既有淡底又有 1px 细边：两个元素只叠了零点几毫米时，纯色块几乎看不出来，
+ * 那一条边才是"这里有一条重叠缝"的唯一线索。
+ */
+.bp-overlap {
+  position: absolute;
+  pointer-events: none;
+  background: var(--pp-overlap);
+  border: 1px solid var(--pp-overlap-line);
+}
+
+.bp-el.is-locked {
+  cursor: default;
+}
+
+.bp-el--pagebreak {
+  cursor: default;
+}
+
+/* 超出纸张：灰色斜纹遮罩（PRD F2-14 / E-44） */
+.bp-el-oob {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--pp-line-faint) 0,
+    var(--pp-line-faint) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+.bp-el-warn {
+  position: absolute;
+  right: calc(-6px * var(--bp-inv, 1));
+  top: calc(-6px * var(--bp-inv, 1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(12px * var(--bp-inv, 1));
+  height: calc(12px * var(--bp-inv, 1));
+  border-radius: var(--r-pill);
+  background: var(--warning);
+  color: var(--text-on-accent);
+  font-size: calc(9px * var(--bp-inv, 1));
+  line-height: 1;
+  font-weight: var(--fw-semibold);
+}
+
+.bp-handle {
+  position: absolute;
+  /*
+   * 元素内部竞争：手柄要压在同元素的正文与 .bp-el-oob 斜纹遮罩之上。
+   * 选中态（.bp-el.is-selected）自己有 z-index，已经建了层叠上下文，
+   * 所以这里的 1 只和同元素里的兄弟节点排序，不会溢出到别的元素上去。
+   * 顺序上不改既有关系：oob / warn / 内联编辑框仍是"先画"，手柄最后画。
+   */
+  z-index: 1;
+  width: 8px;
+  height: 8px;
+  margin: calc(-4px * var(--bp-inv, 1));
+  border: 1.5px solid var(--accent);
+  border-radius: 1px;
+  background: var(--pp-surface);
+  transform: scale(var(--bp-inv, 1));
+  cursor: nwse-resize;
+}
+
+.bp-handle--nw {
+  left: 0;
+  top: 0;
+}
+.bp-handle--ne {
+  right: 0;
+  top: 0;
+  cursor: nesw-resize;
+}
+.bp-handle--sw {
+  left: 0;
+  bottom: 0;
+  cursor: nesw-resize;
+}
+.bp-handle--se {
+  right: 0;
+  bottom: 0;
+}
+
+/*
+ * 四边中点手柄。
+ *
+ * 位置用 50% + translate(-50%) 而不是计算像素：手柄宽高是固定的 8px，
+ * 但 margin 走的是 --bp-inv 反向缩放，写死像素在缩放后就不居中了。
+ * 这里把不需要的那条 margin 归零，让 translate 单独负责居中。
+ */
+.bp-handle--n,
+.bp-handle--s {
+  left: 50%;
+  margin-left: 0;
+  cursor: ns-resize;
+  transform: translate(-50%, 0) scale(var(--bp-inv, 1));
+}
+
+.bp-handle--w,
+.bp-handle--e {
+  top: 50%;
+  margin-top: 0;
+  cursor: ew-resize;
+  transform: translate(0, -50%) scale(var(--bp-inv, 1));
+}
+
+.bp-handle--n {
+  top: 0;
+}
+.bp-handle--s {
+  bottom: 0;
+}
+.bp-handle--w {
+  left: 0;
+}
+.bp-handle--e {
+  right: 0;
+}
+
+.bp-el-text {
+  width: 100%;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bp-inline-edit {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 1px dashed var(--accent);
+  border-radius: 1px;
+  background: var(--accent-soft);
+  color: inherit;
+  font: inherit;
+  resize: none;
+  overflow: hidden;
+}
+
+.bp-inline-edit:focus {
+  outline: none;
+}
+
+/* 单元格内的就地编辑：高度交给单元格撑（父级 td 有 padding + 行高），
+   不能用基类的 height:100% —— 那会让 td 里的 textarea 撑满整行，视觉上跳一下 */
+.bp-inline-edit--cell {
+  height: auto;
+  min-height: 1.4em;
+}
+
+.bp-el-note {
+  margin-left: 4px;
+  color: var(--text-3);
+  font-size: 0.85em;
+}
+
+/* 字段占位符胶囊 */
+.bp-chip {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0 3px;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-xs);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.92em;
+  line-height: 1.35;
+  vertical-align: baseline;
+  /**
+   * ⚠️ 这里**不能**写 `overflow: hidden`（2026-09-18 飞书真机反馈后修正）。
+   *
+   * CSS 规范：`display: inline-block` 且 `overflow != visible` 的盒子，
+   * **基线取它的下外边距边缘**（而不是最后一行文字的基线）。于是整个 chip 被顶到
+   * 基线之上，和同一行里的**前缀 / 后缀**肉眼可见地错开。
+   *
+   * 用户原话："在任意字段中的属性中，增加前缀和后缀后，画布内前后缀内容和字段不平齐，
+   * 但预览又是正常的" —— 预览侧（render/html.ts）是**纯文本拼接**、不走这个 chip，
+   * 所以它是对的；错的是画布这一份。两套渲染不一致时，**以能印出来的那份为准**。
+   *
+   * ⇒ 截断（ellipsis）下移到内层 `.bp-chip__text`，chip 自己保持 `overflow: visible`，
+   *   基线回到"最后一行文字的基线"，四处 chip（行内字段 / 系统变量 / 字段块 / 附件块）一起修好。
+   */
+  overflow: visible;
+}
+
+/**
+ * chip 内部承载文本的那一层 —— **截断与省略号都归它**。
+ * 单独成层的原因见上面 `.bp-chip` 的注释：截断需要的 `overflow: hidden` 不能挂在 chip 自己身上。
+ */
+.bp-chip__text {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-chip--sys {
+  border-color: var(--success);
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+/*
+ * 未绑定的字段：**不做红底块**（纸面上撒一片红色方块像渲染事故），
+ * 只把字段名改成警示色 + 一条细虚线下划线，详细说明放在 title 里，悬浮才出现。
+ */
+.bp-chip--missing {
+  padding: 0;
+  border: 0;
+  border-bottom: 1px dashed currentColor;
+  border-radius: 0;
+  background: transparent;
+  color: var(--warning);
+  cursor: help;
+}
+
+.bp-el-table {
+  font-size: inherit;
+  color: inherit;
+}
+
+.bp-el-cell {
+  vertical-align: top;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.bp-el-cell.is-header {
+  font-weight: var(--fw-medium);
+}
+
+.bp-el-cell.is-selected {
+  outline: 1.5px solid var(--accent);
+  outline-offset: -1.5px;
+  background: var(--accent-soft);
+}
+
+/*
+ * ---------- 框选（按住左键拖过一片格子）的**可见高亮** ----------
+ *
+ * ⚠️⚠️ 这条规则**以前完全不存在**（2026-09-23 真机反馈：「已经点了编辑表格，但还是无法按住左键
+ *    拖动格子，按住 shift+左键也无法多选」）。
+ *
+ * 真相：选区**一直是好的**（`cellSel` 正常更新、`td.is-rsel` 也真的加上去了 ——
+ * e2e 数到了 2 个以上），但**没有任何样式** ⇒ 屏幕上什么都不变 ⇒ 用户合理地判定"拖不动"。
+ * 而我的 e2e 只断言了"类名在不在"，没断言"看起来不一样"，所以一直是假绿。
+ * ⇒ 修样式的同时，把断言也改成**读计算样式**（见 e2e ⑫k 的那一条）。
+ *
+ * 为什么用 `box-shadow: inset` 而不是背景色/outline：
+ *   · 单元格常带**行内 background**（标题行、用户设的底纹）⇒ 类里的 background 会被行内样式压掉 ✗；
+ *   · 单元格紧挨着，outline 会和邻格叠成双层框（`.is-drop-target` 那边踩过同一个坑）✗。
+ *   `inset` 阴影画在格子内侧，既不会被行内 background 盖住，也不会溢到邻格。
+ * 颜色用主题色：与「单格选中」（`.is-selected` 的柔和底纹）区分开 —— 框选是"一片"、单格是"一格"。
+ */
+.bp-el-cell.is-rsel {
+  box-shadow: inset 0 0 0 calc(2px * var(--bp-inv, 1)) var(--accent);
+}
+
+/*
+ * 拖拽中"松手会放进这个格子"的高亮。
+ *
+ * 为什么要有：用户的原话是"从左侧拖入的其他字段无法放置到单元格内，似乎是漂浮在单元格上了"
+ * —— 因为松手之前画面**什么都不说**，用户不知道这一下到底会变成什么。
+ * 高亮把"将要发生的事"提前画出来，不必靠猜；配上 .bp-drop-hint.is-into 的一句短话。
+ * 用 inset 阴影而不是 outline：单元格挨在一起，outline 会和邻格叠成双层框。
+ */
+.bp-el-cell.is-drop-target {
+  background: var(--success-soft);
+  box-shadow: inset 0 0 0 2px var(--success);
+}
+
+/* 空单元格被选中时的提示：否则用户点上去不知道这里能直接打字 */
+/*
+ * 单元格（`<td>`）：给绝对定位的占位提示做定位参照。
+ * 它自己的 padding 由 Canvas 内联给出（每个表格可配 `cellPaddingMm`），这里只补 position。
+ */
+.bp-el-cell {
+  position: relative;
+}
+
+/*
+ * 空单元格里的「双击输入」占位提示。
+ *
+ * ⚠️ **必须绝对定位**（2026-09-19 真机反馈修正）。
+ *
+ * 它原来是 `display: block` 的**流内元素** —— 点一下空单元格，这句提示就占掉一行，
+ * **把这一行撑高**；而蓝色选区是按**模型**（行高）算的，不会跟着涨 ⇒ 两者错位 ⇒
+ * 用户下一次双击就落到**下面的单元格**上，或者干脆被判成取消。
+ * 用户原话："我点击表格的第一个单元格，该单元格会被撑开，提示双击输入，
+ * 但因为蓝色选区没有被撑开，导致双击的时候，要么双击到下方的单元格，要么直接被取消。"
+ *
+ * 绝对定位之后它只是"浮在格子里的字"，**一点不参与布局**。
+ * `pointer-events: none` 让它不抢双击（否则双击会打在提示上而不是 `td` 上）。
+ */
+.bp-el-cell__ph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: inherit;
+  color: var(--pp-ink-mute);
+  font-size: 0.9em;
+  opacity: 0.75;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/*
+ * 选中表格时压在边框线上的列 / 行手柄。
+ *
+ * 尺寸走 --bp-inv 反向缩放：纸张是 `transform: scale()` 缩放的，写死像素的话
+ * 缩到 50% 时手柄只剩 3px —— 看得见但按不准（.bp-handle 用的是同一招）。
+ * 容器本身 `pointer-events: none`，只有那几条细线收事件：单元格选中是表格里最常用的动作，
+ * 手柄做宽了会把它抢走。
+ */
+.bp-tbl-size {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.bp-tbl-size__col,
+.bp-tbl-size__row {
+  position: absolute;
+  pointer-events: auto;
+  background: transparent;
+}
+
+.bp-tbl-size__col {
+  top: 0;
+  bottom: 0;
+  width: calc(7px * var(--bp-inv, 1));
+  transform: translateX(-50%);
+  cursor: col-resize;
+}
+
+.bp-tbl-size__row {
+  left: 0;
+  right: 0;
+  height: calc(7px * var(--bp-inv, 1));
+  transform: translateY(-50%);
+  cursor: row-resize;
+}
+
+.bp-tbl-size__col:hover,
+.bp-tbl-size__row:hover {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/*
+ * 智能对齐线（拖动 / 缩放时才出现）。
+ *
+ * 必须和网格**一眼分得开**：网格是常驻的参考底纹（极淡、铺满整页），
+ * 对齐线是"当下的判定结果"（拖动才出现、只有几根、颜色明确）。
+ * 两者共用一种颜色的话，用户分不清"这里本来有格线"和"这一下对齐上了" ——
+ * 而后者才是这个功能存在的理由。
+ * 线宽走 --bp-inv 反向缩放，纸张缩到 50% 时屏幕上仍是 1px。
+ */
+.bp-guide {
+  position: absolute;
+  pointer-events: none;
+  z-index: 6;
+  background: var(--accent);
+}
+
+.bp-guide--x {
+  width: calc(1px * var(--bp-inv, 1));
+  transform: translateX(-50%);
+}
+
+.bp-guide--y {
+  height: calc(1px * var(--bp-inv, 1));
+  transform: translateY(-50%);
+}
+
+/*
+ * 文档级基准线（版心居中 / 纸张居中 / 分区边界…，2026-09-22）。
+ *
+ * 与"元素间对齐线"用**同一种蓝**、但画成**虚线**：两条线的语义是同一件事（对齐参考），
+ * 换色会让人以为是两个功能；而虚线是"这条是基准、不是我俩真的贴上了"的现成语汇。
+ * 元素间那条保持实线（它是"两个元素的这条边重合了"的强提示）。
+ */
+.bp-guide.is-doc {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--accent) 0,
+    var(--accent) calc(4px * var(--bp-inv, 1)),
+    transparent calc(4px * var(--bp-inv, 1)),
+    transparent calc(8px * var(--bp-inv, 1))
+  );
+}
+
+.bp-guide--y.is-doc {
+  background: repeating-linear-gradient(
+    to right,
+    var(--accent) 0,
+    var(--accent) calc(4px * var(--bp-inv, 1)),
+    transparent calc(4px * var(--bp-inv, 1)),
+    transparent calc(8px * var(--bp-inv, 1))
+  );
+}
+
+/* 基准线的名字（"版心水平居中"…）—— 不写名字的话，用户只知道"吸到某条线了"而不知是哪条 */
+.bp-guide__tag {
+  position: absolute;
+  padding: calc(1px * var(--bp-inv, 1)) calc(5px * var(--bp-inv, 1));
+  border-radius: calc(3px * var(--bp-inv, 1));
+  background: var(--accent);
+  color: #fff;
+  font-size: calc(9px * var(--bp-inv, 1));
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.bp-guide--x .bp-guide__tag {
+  top: calc(2px * var(--bp-inv, 1));
+  left: calc(4px * var(--bp-inv, 1));
+}
+
+.bp-guide--y .bp-guide__tag {
+  top: calc(-15px * var(--bp-inv, 1));
+  left: calc(2px * var(--bp-inv, 1));
+}
+
+.bp-el-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================================
+   二维码 / 条形码
+   ============================================================ */
+
+.bp-el-code {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/*
+ * 渲染库产出的 SVG 自带 mm 宽高（打印 1:1 就靠它），但画布上的元素框是被用户拖出来的，
+ * 两者不一定等值，所以这里统一用 100%×100% 让 SVG 跟着元素框走。
+ * SVG 默认 preserveAspectRatio="xMidYMid meet"，因此只会等比缩放 + 居中，不会被拉变形
+ * —— 变形的二维码是扫不出来的，绝不能用 preserveAspectRatio="none"。
+ */
+.bp-el-code__svg {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+}
+
+.bp-el-code__svg > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.bp-el-code__caption {
+  flex: 0 0 auto;
+  max-width: 100%;
+  color: var(--pp-ink-mute);
+  font-size: 0.8em;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 占位框：只有"固定内容"来源才画得出一张真码。
+ * 绑定字段时编辑期没有稳定值可用，就明确画一个"这里将来是码"的空框，
+ * 而不是拿字段名硬编一张假码骗人（打印出来跟预览完全不是一回事）。
+ */
+.bp-el-code--ph {
+  border: 1px dashed var(--pp-line);
+  border-radius: var(--r-xs);
+  background: var(--pp-surface-2);
+  color: var(--pp-ink-mute);
+}
+
+.bp-el-code--ph.is-warn {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.bp-el-code__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 0 6%;
+  text-align: center;
+}
+
+.bp-el-code__badge {
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: var(--r-pill);
+  font-size: 0.72em;
+  line-height: 1.5;
+}
+
+.bp-el-code__name {
+  max-width: 100%;
+  font-size: 0.95em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-el-code__note {
+  font-size: 0.72em;
+  opacity: 0.85;
+}
+
+.bp-el-hline {
+  width: 100%;
+  min-height: 1px;
+  border-top-style: solid;
+  border-top-width: 1px;
+}
+
+.bp-el-pagebreak {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-top: 1px dashed var(--text-3);
+}
+
+.bp-el-pagebreak__label {
+  padding: 0 4px;
+  background: var(--paper);
+  color: var(--text-3);
+  font-size: calc(9px * var(--bp-inv, 1));
+}
+
+.bp-el-attach {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  padding: 3px;
+  border: 1px dashed var(--pp-line);
+  border-radius: var(--r-xs);
+  background: var(--pp-surface-2);
+  overflow: hidden;
+}
+
+.bp-el-attach__head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bp-el-attach__tag {
+  flex: none;
+  color: var(--pp-ink-mute);
+  font-size: 0.85em;
+}
+
+.bp-el-attach__meta {
+  color: var(--pp-ink-mute);
+  font-size: 0.8em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-el-attach__grid {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+.bp-el-attach__ph {
+  width: 18px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--pp-line-faint);
+}
+
+/* ============================================================
+   抽屉
+   ============================================================ */
+
+.bp-drawer {
+  /* flex: 0 1 auto —— 容器不够高时抽屉也要跟着缩，不能把画布挤没（见 .bp-canvas-area 的下限） */
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 120px;
+  /* 默认只吃掉约 38% 的高度，把画布让出来；抓手可一键收起到 0 */
+  height: clamp(148px, 38%, 320px);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: 0 -1px 0 var(--line-faint);
+}
+
+/* 拖拽中把抽屉藏起来：抽屉会挡住画布，用户看不到落点 */
+.bp-drawer.is-dragging {
+  opacity: 0;
+  pointer-events: none;
+  transition: none;
+}
+
+/* 抓手：一条短横杠，点一下就收起整个抽屉（比"再点一次当前标签"更好发现） */
+.bp-drawer__grab {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.bp-drawer__bar {
+  width: 36px;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: var(--line-strong);
+  transition: background var(--t-fast), width var(--t-fast);
+}
+
+.bp-drawer__grab:hover .bp-drawer__bar {
+  width: 48px;
+  background: var(--text-3);
+}
+
+.bp-drawer__body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.bp-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.bp-panel__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--sp-3) var(--sp-3) var(--sp-5);
+}
+
+.bp-panel__title {
+  padding: 0 0 var(--sp-3);
+  color: var(--text-1);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+
+/* 分段控件作为面板标题栏里的切换器时，不要再往外撑 */
+.bp-seg--tabs {
+  flex: 1 1 auto;
+  background: var(--surface-2);
+}
+
+.bp-panel__empty,
+.bp-panel__foot {
+  margin: var(--sp-2) 0;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+.bp-panel__foot {
+  padding: 0 var(--sp-3) var(--sp-2);
+}
+
+/* ---- 搜索 ---- */
+
+.bp-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: var(--sp-2) var(--sp-3);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  transition: border-color var(--t-fast), background var(--t-fast), box-shadow var(--t-fast);
+}
+
+.bp-search:focus-within {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.bp-search__icon {
+  flex: none;
+  color: var(--text-3);
+}
+
+.bp-search__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.bp-search__input:focus {
+  outline: none;
+}
+
+/* ---- 分组 ---- */
+
+.bp-group {
+  margin-bottom: var(--sp-2);
+}
+
+.bp-group__head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.bp-group__title {
+  padding: 4px 2px;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.bp-group__caret {
+  flex: none;
+  display: inline-flex;
+  transform: rotate(-90deg);
+  transition: transform var(--t-fast);
+}
+
+.bp-group__caret.is-open,
+.bp-sec__caret.is-open {
+  transform: rotate(0deg);
+}
+
+.bp-group__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-group__count {
+  flex: none;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.bp-group__body {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+}
+
+.bp-group__body--wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* ---- 字段胶囊 ---- */
+
+.bp-chip-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: grab;
+  touch-action: none;
+}
+
+.bp-chip-item:hover {
+  background: var(--surface-hover);
+}
+
+.bp-chip-item:active:not(.is-blocked) {
+  background: var(--surface-pressed);
+}
+
+.bp-chip-item--inline {
+  width: auto;
+  flex: 0 1 auto;
+}
+
+.bp-chip-item.is-blocked {
+  color: var(--text-disabled);
+  background: var(--surface-3);
+  cursor: not-allowed;
+}
+
+.bp-chip-item__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.bp-chip-item__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-chip-item__flag {
+  flex: none;
+  padding: 0 4px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+
+.bp-chip-item__flag--danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.bp-chip-item__flag--warn {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+/* ============================================================
+   「检查」面板（2026-09-18 用户要求新增）
+   ------------------------------------------------------------
+   与 Palette 的区别：Palette 列"能加什么"，这里列"已经有什么"。
+   所以这里每行是一个**对象**（可选中、可删除），而不是一个可拖拽的类型。
+   ============================================================ */
+
+.bp-panel__count {
+  margin-left: var(--sp-2);
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+
+/* 行式列表：与"按钮式元素列表"不同，这里要的是紧凑的清单 */
+.bp-group__body--rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bp-insp-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  width: 100%;
+  min-width: 0;
+  border-radius: var(--r-sm);
+  /* 选中态用它显形；未选中时透明，避免每行都描一圈边 */
+  background: transparent;
+}
+
+.bp-insp-row:hover {
+  background: var(--surface-hover);
+}
+
+.bp-insp-row.is-on {
+  background: var(--accent-soft);
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/*
+ * 命中区（整行）
+ *
+ * 注意：**不能用 `<button>` 套 `<button>`** —— 那是非法 HTML，浏览器会把内层按钮
+ * 挪到外层之外，删除键会跑到莫名其妙的位置。所以这里行本身是一个按钮，
+ * 删除是它的**兄弟**，两者并排用 flex 拼成"一行"。
+ */
+.bp-insp-row__hit {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: 5px 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.bp-insp-row__band {
+  flex: none;
+  padding: 0 4px;
+  border-radius: var(--r-xs);
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+
+.bp-insp-row__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-insp-row__pos {
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.bp-insp-row__del {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 2px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.bp-insp-row__del:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* 字段行：不可点（字段属于数据表，删不了），所以只排版、不给 hover 反馈 */
+.bp-insp-row--field {
+  padding: 4px 6px;
+}
+
+.bp-insp-row--field:hover {
+  background: transparent;
+}
+
+.bp-insp-row__bad {
+  margin-left: var(--sp-2);
+  padding: 0 4px;
+  border-radius: var(--r-xs);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--fs-xs);
+}
+
+/* ---- 元素列表 ---- */
+
+.bp-el-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  width: 100%;
+  min-width: 0;
+  padding: var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font: inherit;
+  text-align: left;
+  cursor: grab;
+  touch-action: none;
+}
+
+.bp-el-item:hover {
+  background: var(--surface-hover);
+}
+
+.bp-el-item:active {
+  background: var(--surface-pressed);
+}
+
+.bp-el-item__icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-xs);
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+
+.bp-el-item__icon--sm {
+  width: 16px;
+  height: 16px;
+  background: transparent;
+}
+
+.bp-el-item__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bp-el-item__label {
+  color: var(--text-1);
+  font-size: var(--fs-sm);
+}
+
+.bp-el-item__hint {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-tight);
+}
+
+/* ============================================================
+   属性面板
+   ============================================================ */
+
+.bp-elbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) 0 var(--sp-2);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--sp-2);
+}
+
+.bp-elbar__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-1);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 面包屑：表格 › 第 2 行 第 3 列。
+ *
+ * 有了它，用户才有一条明确的"从单元格退回整表"的路径 ——
+ * 只有 Esc 是不够的（快捷键不写在脸上，没人会去猜）。
+ */
+.bp-crumb {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+
+.bp-crumb__link {
+  padding: 1px 4px;
+  margin-left: -4px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bp-crumb__link:hover {
+  background: var(--accent-soft);
+}
+
+.bp-crumb__sep {
+  flex: none;
+  color: var(--text-4);
+  font-weight: var(--fw-regular);
+}
+
+.bp-crumb__cur {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 单元格里"一个字段占位符一行"的改绑行 */
+.bp-fieldref {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.bp-fieldref__pick {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.bp-sec {
+  border-bottom: 1px solid var(--line-faint);
+  padding-bottom: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.bp-sec__head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-align: left;
+  cursor: pointer;
+}
+
+.bp-sec__caret {
+  flex: none;
+  display: inline-flex;
+  transform: rotate(-90deg);
+  transition: transform var(--t-fast);
+}
+
+.bp-sec__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-sec__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-top: var(--sp-1);
+}
+
+.bp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.bp-field--inline {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/*
+ * 标签**永远不省略号**。
+ *
+ * 原来是 nowrap + hidden + ellipsis：右栏只有 280px、标签列固定 56px，
+ * 于是「所属版式区」「表头每页重复」「多记录并成一张大表」「单元格内边距」……
+ * 一律被截成「所属版…」「表头每…」。用户看不到完整功能名是硬伤 ——
+ * 他不知道这个开关到底叫什么，也就没法判断该不该开。
+ * 宁可换行：面板窄，就让它占两行，字一个不少。
+ */
+.bp-field__label {
+  min-width: 0;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.bp-field__body {
+  min-width: 0;
+}
+
+.bp-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.bp-hint {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+.bp-note {
+  margin-top: var(--sp-3);
+  padding: var(--sp-2);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.bp-note p {
+  margin: 0;
+}
+
+.bp-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 0;
+  padding: 5px 6px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+.bp-alert--danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.bp-alert--warn {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+/* ---- 分段控件 ---- */
+
+.bp-seg {
+  display: flex;
+  min-width: 0;
+  padding: 2px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.bp-seg__item {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 4px 3px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+
+.bp-seg__item:hover:not(.is-active):not(:disabled) {
+  color: var(--text-1);
+}
+
+.bp-seg__item.is-active {
+  background: var(--surface);
+  color: var(--text-1);
+  font-weight: var(--fw-medium);
+  box-shadow: var(--shadow-sm);
+}
+
+.bp-seg__item:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.bp-seg__item:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.bp-seg__text {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- 数值 ---- */
+
+.bp-num {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.bp-num:focus-within {
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.bp-num__input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.bp-num__input:focus {
+  outline: none;
+}
+
+.bp-num__suffix {
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.bp-input {
+  width: 100%;
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.bp-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.bp-textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  resize: vertical;
+}
+
+.bp-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* ---- 开关 ---- */
+
+.bp-switch {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  cursor: pointer;
+  transition: background var(--t-fast);
+}
+
+.bp-switch.is-on {
+  background: var(--accent);
+}
+
+.bp-switch__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--t-fast);
+}
+
+.bp-switch.is-on .bp-switch__knob {
+  transform: translateX(14px);
+}
+
+.bp-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- 颜色 ---- */
+
+.bp-color {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.bp-color__native {
+  flex: none;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  background: transparent;
+  cursor: pointer;
+}
+
+/*
+ * 色板排成**网格**，不是一条会无限延伸的竖线。
+ *
+ * 原来是 flex + flex-wrap：容器宽度不够时（线色和内边距并排只剩 ~58px）
+ * 它会退化成"一行一个色块"—— 10 个色块竖着摞成一条 27×167 的竖条，
+ * 用户原话是"线色 的色板挤成一竖条"。
+ *
+ * 改网格后有两个坑要一起躲开：
+ *  1) 外层 .bp-color 必须是 grid，不能是 flex —— flex 下这个网格的 max-content 宽度是
+ *     退化的（只剩一列），就算父级给足了宽度它也只展开 14px，还是竖条。
+ *  2) auto-fill 的列宽用 13px（不是 14）+ 2px 间距：右栏一行可用 ~151px，
+ *     10 个色块正好 10×13+9×2 = 148px 排成一行。14px 要 158px，会被挤成 9+1 两行
+ *     —— 最后那个孤零零的色块比竖条好看不到哪去。
+ */
+.bp-color__swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 13px);
+  gap: 2px;
+  min-width: 0;
+  align-content: center;
+}
+
+.bp-color__dot {
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  cursor: pointer;
+}
+
+.bp-color__dot.is-active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---- 按钮组 ---- */
+
+.bp-btnrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bp-minibtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.bp-minibtn:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.bp-minibtn:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.bp-minibtn:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.bp-linkbtn {
+  padding: 2px 4px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+
+.bp-linkbtn:hover {
+  background: var(--accent-soft);
+}
+
+.bp-linkbtn:active {
+  background: var(--accent-soft-strong);
+}
+
+/* 小按钮的"开着"状态（页边距的上下 / 左右联动开关）：实心强调，一眼看出联动在生效 */
+.bp-minibtn.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.bp-minibtn.is-on:hover:not(:disabled) {
+  background: var(--accent-soft-strong);
+}
+
+.bp-inline-ctl {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bp-tgl {
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+
+.bp-tgl:hover:not(.is-on) {
+  background: var(--surface-hover);
+}
+
+.bp-tgl:active {
+  background: var(--surface-pressed);
+}
+
+.bp-tgl.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.bp-tgl--bold {
+  font-weight: 700;
+}
+.bp-tgl--italic {
+  font-style: italic;
+}
+.bp-tgl--under {
+  text-decoration: underline;
+}
+.bp-tgl--strike {
+  text-decoration: line-through;
+}
+
+.bp-img-preview {
+  display: block;
+  width: 100%;
+  max-height: 120px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+/* ============================================================
+   胶囊选择器 / 弹出层
+   ============================================================ */
+
+.bp-picker {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+
+.bp-picker:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.bp-picker:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.bp-picker.is-open {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+/* 未绑定字段：警示色而不是红色块，和画布上的 .bp-chip--missing 保持一致 */
+.bp-picker.is-warn {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.bp-picker:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.bp-picker__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-picker__label.is-empty {
+  color: var(--text-3);
+}
+
+/* 展开时三角指示符旋转 180°（PRD F7-03） */
+.bp-picker__caret {
+  flex: none;
+  display: inline-flex;
+  color: var(--text-3);
+  transition: transform var(--t-fast);
+}
+
+.bp-picker__caret.is-open {
+  transform: rotate(180deg);
+}
+
+.bp-popover {
+  position: fixed;
+  /*
+   * 弹出层是 portal 到 <body> 的，所以它的层级对手是**页面级**的容器，不是编辑器内部。
+   * 宿主（编辑器自己的 `.bp-fs` 全屏浮层）是 position: fixed + z-index: calc(--z-modal + 10) = 410，
+   * 而 --z-popover 只有 200 —— 那样每个下拉（缩放预设/字体/绑定字段/纸张）都会画在编辑器底下，
+   * 按钮是展开态但菜单根本看不见。所以这里必须压过宿主一层，而不是只满足 PRD 的">=200"。
+   *
+   * ⚠️ 2026-09-21：宿主**换人了** —— 以前是 wizard 的 `.wz-editor-host`（400），
+   * 那个元素连同"侧边栏内联画布"整条分支已删除，现在是 `.bp-fs`（410）。
+   * `+100` 这个差值不变：500 仍然压得住 410、又低于 `--z-toast` 600（见 MergeConfirm 的阶梯注释）。
+   */
+  z-index: calc(var(--z-modal) + 100);
+  max-height: 60vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* 必须是不透明背景：半透明会和底层画布文字透叠，看不清（PRD F7-04 点名） */
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.bp-picker__list {
+  list-style: none;
+  margin: 0;
+  padding: var(--sp-1);
+}
+
+.bp-picker__opt-wrap {
+  margin: 0;
+}
+
+/*
+ * 胶囊菜单里的分组标题（如纸张预设的「标准纸张 / 标签·面单」）。
+ * 不可点、不参与键盘选中，只负责分隔与说明 —— 把 A4 和 100×150 热敏面单
+ * 混在一个平铺列表里，是必选错的。
+ */
+.bp-picker__group {
+  padding: var(--sp-2) var(--sp-3) 4px;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+
+.bp-picker__group:not(:first-child) {
+  margin-top: 2px;
+  border-top: 1px solid var(--line-faint);
+}
+
+.bp-picker__opt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 7px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.bp-picker__opt:hover {
+  background: var(--surface-hover);
+}
+
+.bp-picker__opt.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: var(--fw-medium);
+}
+
+.bp-picker__opt.is-blocked {
+  color: var(--text-disabled);
+}
+
+.bp-picker__opt-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-picker__opt-tag {
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.bp-picker__tick {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+
+.bp-picker__empty {
+  padding: var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  text-align: center;
+}
+
+.bp-fieldpicker {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bp-fieldpicker__search {
+  margin: var(--sp-1);
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-sm);
+}
+
+.bp-fieldpicker__search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.bp-fieldpicker__list {
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+/* ============================================================
+   检查条 / 浮层 / toast
+   ============================================================ */
+
+.bp-checkbar {
+  flex: none;
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.bp-checkbar__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 5px var(--sp-3);
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--t-fast);
+}
+
+.bp-checkbar__head:hover {
+  background: var(--surface-hover);
+}
+
+.bp-checkbar.is-warn .bp-checkbar__head {
+  color: var(--warning);
+}
+
+.bp-checkbar__icon {
+  flex: none;
+  display: inline-flex;
+  color: var(--success);
+}
+
+.bp-checkbar.is-warn .bp-checkbar__icon {
+  color: var(--warning);
+}
+
+.bp-checkbar__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-checkbar__caret {
+  flex: none;
+  transition: transform var(--t-fast);
+}
+
+.bp-checkbar__caret.is-open {
+  transform: rotate(180deg);
+}
+
+.bp-checkbar__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--sp-2) var(--sp-2);
+  max-height: 30vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.bp-issue {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.bp-issue:hover {
+  background: var(--surface-hover);
+}
+
+.bp-issue:active {
+  background: var(--surface-pressed);
+}
+
+.bp-issue__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 6px;
+  border-radius: var(--r-pill);
+}
+
+.bp-issue--block .bp-issue__dot {
+  background: var(--danger);
+}
+
+.bp-issue--warn .bp-issue__dot {
+  background: var(--warning);
+}
+
+.bp-issue__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: var(--lh-base);
+}
+
+.bp-issue__go {
+  flex: none;
+  color: var(--accent);
+  font-size: var(--fs-xs);
+}
+
+.bp-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--z-toast);
+  display: none;
+  align-items: center;
+  gap: 6px;
+  max-width: 200px;
+  padding: 5px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-1);
+  font-size: var(--fs-sm);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.bp-ghost__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.bp-ghost__label {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 56px;
+  z-index: var(--z-toast);
+  max-width: calc(100% - 32px);
+  padding: 7px 12px;
+  transform: translateX(-50%);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-1);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+}
+
+/* ============================================================
+   合并确认层（会丢内容的合并前，最后一道闸）
+
+   层级：弹层是 portal 到 <body> 的，对手是**页面级**容器而不是编辑器内部：
+   宿主 .wz-editor-host 是 --z-modal(400)，编辑器自己的下拉/弹出层是 +100(500)，
+   toast 是 600。合并确认是阻塞式的，必须压在它们全体之上，所以取 +250(650)。
+   （这个项目踩过"宿主盖住下拉层"的坑，这里是同一个坑的下一个路口。）
+   ============================================================ */
+
+.bp-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-modal) + 250);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+  background: rgba(31, 35, 41, 0.24);
+}
+
+.bp-merge-confirm {
+  width: 100%;
+  max-width: 320px;
+  padding: var(--sp-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  /* 必须不透明：半透明会和底下的画布文字透叠（PRD F7-04 点名的设计事故） */
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-1);
+}
+
+.bp-merge-confirm__title {
+  margin: 0 0 6px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+.bp-merge-confirm__text {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+}
+
+.bp-merge-confirm__btns {
+  justify-content: flex-end;
+  margin-top: var(--sp-3);
+}
+
+/* ============================================================
+   断点形态（data-layout 由 EditorShell 的 ResizeObserver 写在根节点上）
+   断点值必须和 EditorShell.tsx 里的 BP_WIDE / BP_MID 保持一致。
+   ============================================================ */
+
+/* ---------- 宽屏 ≥900px：三栏，属性面板常驻且左标签右控件对齐 ---------- */
+
+[data-layout='wide'] .bp-panel__scroll {
+  padding: var(--sp-4) var(--sp-4) var(--sp-6);
+}
+
+[data-layout='wide'] .bp-side--right .bp-panel__title {
+  padding-bottom: var(--sp-4);
+}
+
+/*
+ * 标签列固定 56px：一列对齐下来，眼睛不用来回找控件。
+ *
+ * 为什么是 56 而不是更宽的 64：右栏只有 280px，两列布局下每个控件只剩 ~50px；
+ * 再被标签吃掉 64+8，三位的 mm 值（210 / 297）就会被输入框裁成"21"，
+ * 看起来像文档里存的是 21mm —— 比不整齐危险得多。56px 下四位数字也放得下。
+ *
+ * 所以"标签放不下"这件事**不靠加宽标签列**解决（加了会把数字挤坏），
+ * 而是靠两条：标签允许换行（见 .bp-field__label 的注释）+ 过长的名字改短、全名进 title。
+ */
+[data-layout='wide'] .bp-side--right .bp-field {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+[data-layout='wide'] .bp-side--right .bp-field__label {
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+/*
+ * 开关行**不再把控件推到最右边**。
+ *
+ * 原来的 --inline 是 `minmax(0,1fr) auto` + justify-self:end：标签贴左、开关贴右，
+ * 中间空出 100 多像素。用户的原话是"有些又和输入框太远"—— 一个开关孤零零飘在右上角，
+ * 看不出它属于哪一行。现在它和别的控件共用同一列：所有控件左边缘连成一条竖线，
+ * 标签到控件的距离统一是 6px。
+ */
+[data-layout='wide'] .bp-side--right .bp-field--inline {
+  grid-template-columns: 56px minmax(0, 1fr);
+}
+
+[data-layout='wide'] .bp-side--right .bp-grid2 {
+  gap: var(--sp-3) var(--sp-2);
+}
+
+[data-layout='wide'] .bp-side--right .bp-sec {
+  padding-bottom: var(--sp-4);
+  margin-bottom: var(--sp-3);
+}
+
+[data-layout='wide'] .bp-side--right .bp-sec__head {
+  padding: var(--sp-2) 0;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.02em;
+}
+
+[data-layout='wide'] .bp-side--right .bp-sec__body {
+  gap: var(--sp-3);
+}
+
+[data-layout='wide'] .bp-side--right .bp-elbar {
+  padding: 0 0 var(--sp-3);
+}
+
+/* ---------- 中屏 640–900px：单侧面板 + 画布 ---------- */
+
+[data-layout='mid'] .bp-panel__scroll {
+  padding: var(--sp-3) var(--sp-4) var(--sp-5);
+}
+
+/* ---------- 窄屏 <640px：底部抽屉 + 画布 ---------- */
+
+/* 窄屏把缩放条压紧一点，但 ± 一定留着 —— 侧栏里"放大看清楚"是最常用的动作 */
+[data-layout='narrow'] .bp-zoomctl__value {
+  min-width: 54px;
+  padding: 0 3px 0 5px;
+}
+
+[data-layout='narrow'] .bp-el-item__hint {
+  display: none;
+}
+
+[data-layout='narrow'] .bp-panel__foot {
+  display: none;
+}
+
+@media (max-width: 360px) {
+  .bp-grid2 {
+    grid-template-columns: 1fr;
+  }
+
+  .bp-tabs__item {
+    padding: 4px 4px;
+  }
+}
+
+/* ============================================================
+   顶栏工具行：文本编辑 + 纸张/方向 + 页面设置 + 在此页预览打印效果
+   （用户的四条要求：文本编辑上移 / 横纵向 / 页内预览 / 页面设置收进按钮）
+   ============================================================ */
+
+/*
+ * 一行放不下就**换行**，不折叠、不藏控件。
+ *
+ * 侧边栏最窄 320px，而这一行里有"作用对象 + 文字 + 纸张 + 方向 + 页面设置 + 预览"六件东西，
+ * 任何"压一压就塞得下"的写法都会变成文字互相盖住。flex-wrap 是唯一诚实的做法：
+ * 挤不下时它自己分两行，控件一个不少、一个不残。
+ */
+.bp-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  min-width: 0;
+  padding-top: 2px;
+}
+
+/* ---- 作用对象：一眼看出"现在改的是哪一层" ---- */
+
+.bp-tools__scope {
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-tight);
+}
+
+.bp-tools__scope-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.bp-tools__scope-text {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-tools__scope-back {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---- 控件分组 ---- */
+
+.bp-tools__group {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/*
+ * 给"胶囊选择器"一个确定的宽度。
+ *
+ * 不给的话它按内容宽度收缩：选中「微软雅黑」时比选中「等宽」宽出二十几像素，
+ * 于是每换一次字体整行控件都会轻微左右跳一下。定宽之后这一行是钉住的。
+ */
+.bp-tools__group--font .bp-picker,
+.bp-tools__group--paper .bp-picker {
+  flex: none;
+  width: 104px;
+}
+
+.bp-tools__group--font .bp-num {
+  flex: none;
+  width: 68px;
+}
+
+.bp-tools__group--align .bp-seg {
+  flex: none;
+  width: 122px;
+}
+
+/*
+ * 色板也必须给**确定宽度**。
+ *
+ * `.bp-color__swatches` 是 `repeat(auto-fill, 13px)`：它的列数取决于容器的可用宽度。
+ * 在右侧面板里 `.bp-color` 是 `minmax(0,1fr)` 的网格子项，宽度是确定的，所以排得开；
+ * 而工具栏里它落在一个 `flex: none` 的 inline-flex 分组里 —— 可用宽度是**不确定**的，
+ * 此时 auto-fill 只重复 1 次，7 个色块竖着摞成一根 45×103 的竖条，
+ * 连带把整条工具行撑到 105px 高。那条"用户报的色板挤成一竖条"的缺陷就是这么长出来的
+ * （任务 6 只修了面板那一侧）。
+ * 137 = 26（取色器）+ 8（间距）+ 103（7×13 + 6×2），正好一行排满 7 个色块。
+ */
+.bp-tools__group--color .bp-color {
+  width: 137px;
+}
+
+/*
+ * 纸张那一组在窄侧栏里**自己换行**。
+ *
+ * 这一组（纸张 + 方向 + 页面设置 + 预览 + 读数）合起来约 440px，比 380px 的侧栏还宽。
+ * 外层 .bp-tools 的 flex-wrap 只负责"组与组之间"换行，管不了组内部 —— 结果就是
+ * 整组溢出容器、预览按钮被推出可视区（实测 scrollWidth 419 > clientWidth 364）。
+ * 所以这里必须让这一组**可以被压缩**（flex-shrink 而不是 flex:none）+ 允许内部换行。
+ */
+.bp-tools__group--paper {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.bp-tools .bp-tgl:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+/* ---- 小按钮 / 危险按钮（工具栏与"清除覆写"复用） ---- */
+
+.bp-btn--sm {
+  padding: 4px 8px;
+  font-size: var(--fs-xs);
+}
+
+.bp-btn.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.bp-btn--danger {
+  border-color: var(--line);
+  color: var(--danger);
+}
+
+.bp-btn--danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+/* ---- 方向 / 预览 / 读数 / 说明 ---- */
+
+/*
+ * 撤销 / 重做在最右端（用户给的参照：左边文本编辑、右边纸张与页面、最右撤销/重做）。
+ *
+ * flex:none 是必须的：`.bp-tools` 是 flex-wrap 容器，这一组要是允许收缩，
+ * 窄侧栏下 26px 的图标按钮会被压成一条细线 —— 看着还在，其实点不到了。
+ */
+.bp-tools__group--history {
+  flex: none;
+}
+
+.bp-tools__orient {
+  white-space: nowrap;
+}
+
+.bp-tools__dim {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.bp-tools__preview {
+  white-space: nowrap;
+}
+
+/*
+ * 表格入口必须**定宽**。
+ *
+ * 与字体、纸张两处同一个理由（见上面「给胶囊选择器一个确定的宽度」那段）：
+ * 不定宽时它会随"选中 / 未选中"在 60px 与 96px 之间跳（选中后多一个 `3×3` 读数），
+ * 一整行控件都会跟着左右挪；而这一行是 `flex-wrap: wrap` 的，宽度一变还可能多折一行，
+ * 工具行一变高，画布就整体下移 —— 用户按下的那一刻命中的已经是另一个元素了。
+ */
+.bp-tools__table {
+  flex: none;
+  width: 96px;
+  justify-content: center;
+}
+
+.bp-tools__pop--table {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* 弹层里的分组不再吃 margin-left:auto（那是给整行的右对齐用的），表格弹层同理 */
+.bp-tools__pop--table .bp-tools__group {
+  margin-left: 0;
+}
+
+.bp-tools__pop--table .bp-hint {
+  flex: 1 0 100%;
+  margin: 0;
+}
+
+.bp-tools__meta {
+  margin-left: var(--sp-1);
+  white-space: nowrap;
+}
+
+.bp-tools__caret {
+  display: inline-flex;
+  margin-left: 2px;
+  transition: transform var(--t-fast);
+}
+
+.bp-tools__caret.is-open {
+  transform: rotate(180deg);
+}
+
+/* ---- 弹层内容 ---- */
+
+.bp-tools__pop {
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  max-height: min(70vh, 620px);
+  overflow-y: auto;
+}
+
+.bp-tools__pop--text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* 弹层里的分组不再吃 margin-left:auto（那是给整行的右对齐用的） */
+.bp-tools__pop--text .bp-tools__group--paper,
+.bp-tools__pop--text .bp-tools__group {
+  margin-left: 0;
+}
+
+.bp-tools__pop--page .bp-panel__title {
+  display: none;
+}
+
+/* 窄档：文字工具收进弹层后，剩下的组要吃掉整行，不然右侧会空一大块 */
+[data-tools='compact'] .bp-tools__scope {
+  flex: 0 1 auto;
+}
+
+[data-tools='compact'] .bp-tools__group--paper .bp-picker {
+  width: 92px;
+}
+
+[data-layout='narrow'] .bp-tools__group--font .bp-picker,
+[data-layout='narrow'] .bp-tools__group--paper .bp-picker {
+  width: 88px;
+}
+
+/* ============================================================
+   层级提示（右侧面板顶部那句"正在改 X · 只影响 Y"）
+   ============================================================ */
+
+.bp-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 var(--sp-3);
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+.bp-scope b {
+  color: var(--text-1);
+  font-weight: var(--fw-semibold);
+}
+
+.bp-scope__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.bp-scope__sep {
+  color: var(--text-4);
+}
+
+/* ============================================================
+   行内节点的"这一处"选中态
+   ============================================================ */
+
+/*
+ * 只做圈选，不改字号/颜色/位移。
+ *
+ * 为什么：这一层改的是**会打印出来的内容**，选中态如果顺手加个 padding 或者 font-weight，
+ * 用户在画布上看到的就不再是产物本身（任务 5 刚因为"预览与打印不一致"收过一轮）。
+ * 下划虚线 + 浅底不会影响行内盒模型的排版宽度（不行的话换行位置都会变）。
+ */
+.is-node-sel {
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent);
+  border-radius: var(--r-xs);
+}
+
+/*
+ * 格子里那一处节点的样式面板：叠在**单元格面板之上**，中间用一条实线分开。
+ *
+ * 为什么两块要同时在场（而不是节点面板把单元格面板顶掉）：见 Inspector.tsx 里的注释 ——
+ * 顶掉之后「单元格内容」输入框会跟着消失，用户想改那一格的文字就得先猜到哪里退出这一层。
+ * 这条线的作用是让"上面是这一处、下面是我在的那一格"这个层级一眼看得出。
+ */
+.bp-node-block {
+  padding-bottom: var(--sp-2);
+  margin-bottom: var(--sp-3);
+  border-bottom: 2px solid var(--line-strong);
+}
+
+/* ============================================================
+   编辑器内预览浮层（顶栏「预览」）
+   ============================================================ */
+
+.bp-preview {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg-page);
+}
+
+.bp-preview__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.bp-preview__title {
+  flex: none;
+  color: var(--text-1);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+
+.bp-preview__meta {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.bp-preview__spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.bp-preview__zooms {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bp-preview__pct {
+  min-width: 38px;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  text-align: center;
+}
+
+.bp-preview__note {
+  flex: none;
+  margin: 0;
+  padding: 5px var(--sp-3);
+  border-bottom: 1px solid var(--line-faint);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+}
+
+.bp-preview__busy {
+  color: var(--text-2);
+}
+
+.bp-preview__error {
+  color: var(--danger);
+}
+
+.bp-preview__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--sp-4);
+  overflow: auto;
+  background: var(--paper-canvas-bg, var(--surface-2));
+}
+
+.bp-preview__inner {
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  box-shadow: var(--shadow-md);
+}
+
+.bp-preview__frame {
+  display: block;
+  border: 0;
+  background: var(--paper);
+}
+
+.bp-preview__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 0;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+
+.bp-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--line-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: bp-spin 0.7s linear infinite;
+}
+
+@keyframes bp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bp-spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+
+/* ============================================================
+   表格悬浮工具栏（2026-09-19 用户要求，参考飞书云文档）
+   ------------------------------------------------------------
+   挂在表格元素框的**上方**（`bottom: 100%`），不占版心空间、不推挤内容。
+   反向缩放 `--bp-inv`：纸张是 transform:scale 的，写死像素会在缩小时看不清。
+   ============================================================ */
+.bp-table-bar {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: calc(4px * var(--bp-inv, 1));
+  display: flex;
+  align-items: center;
+  gap: calc(2px * var(--bp-inv, 1));
+  padding: calc(3px * var(--bp-inv, 1));
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  /* 工具栏必须压在表格之上；表格元素本身没有 z-index，这里给个正的即可 */
+  z-index: 3;
+  white-space: nowrap;
+}
+
+.bp-table-bar__btn {
+  padding: calc(2px * var(--bp-inv, 1)) calc(8px * var(--bp-inv, 1));
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--text-1);
+  /* 字号也跟着反向缩放：否则缩到 50% 时按钮字比表格内容还大 */
+  font-size: calc(12px * var(--bp-inv, 1));
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.bp-table-bar__btn:hover {
+  background: var(--surface-hover);
+}
+
+.bp-table-bar__btn.is-primary {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+
+/* ============================================================
+   编辑器全屏容器（EditorOverlay，2026-09-20）
+   ============================================================
+
+   三条硬要求，都对应一个具体的失败形态：
+     1. `position:fixed; inset:0` **盖满插件可视区** —— 这是"容器内全屏"的本体；
+     2. 必须挂在 `document.body`（portal）—— `fixed` 的包含块会被**任何有 transform 的祖先**
+        改写（飞书容器层层嵌套，很容易有一个），挂到 body 就与它们无关了；
+     3. 自带**不透明底色** —— 半透明会让底下的插件列表透出来，看着像"没全屏"。
+   z-index 取 `--z-modal` 之上：它要盖住插件里所有东西（含底部操作栏）。
+*/
+.bp-fs {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-modal) + 10);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-page);
+  overflow: hidden;
+}
+
+
+
+
+
+
+.bp-fs-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.bp-fs-body > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/*
+ * 落库失败的提示条（2026-09-21）。
+ *
+ * 为什么长这样：它**必须挤进浮层内部**，而不是浮到浮层外面 ——
+ * 编辑器是 `position:fixed` 盖满视口的，任何低于它的层级都会被盖住
+ * （`--z-modal + 10`，见 `.bp-fs`）。所以它是 `.bp-fs` 的一个 flex 子项，
+ * 自己 `flex: none`，把画布往下挤一行，而不是浮在画布上面挡内容。
+ * ⚠️ 用 danger 色而不是 warning：这是"没保存成功"，不是提醒。
+ */
+.bp-fs-err {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.bp-fs-err-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  overflow-wrap: anywhere;
+}
+
+.bp-fs-confirm {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--overlay-scrim);
+}
+
+.bp-fs-confirm-card {
+  width: min(360px, 86%);
+  padding: var(--sp-4);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+}
+
+.bp-fs-confirm-title {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-md);
+  color: var(--text-1);
+}
+
+.bp-fs-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+
+/*
+ * 「缩小」后的内嵌模式（2026-09-20 用户要求）。
+ *
+ * 与全屏档**共用同一棵子树**（只换外层容器的定位），所以来回切不会丢编辑状态。
+ * 高度给 `72vh`：既明显比向导里的小块大（排版能看清），又留出上下两端的上下文，
+ * 让用户随时能看到"我还在插件里"。
+ */
+.bp-fs--inline {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  height: 72vh;
+  min-height: 360px;
+  margin: var(--sp-2) 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+/* ============================================================
+   画布右键菜单（2026-09-22）
+   ------------------------------------------------------------
+   用户要求："全屏画布增加右键菜单……**依据元素类型，智能弹出右键菜单**"。
+   样子照用户给的那张图：白底卡片 + 1px 边框 + 圆角 + 阴影，菜单项左文字右提示，
+   危险项（删除）用红色，带子菜单的项右侧一个 ›。
+
+   ⚠️ 用 `position: fixed`：菜单挂在画布根节点上（**不在**被 `transform: scale()` 包着的纸张里）——
+     fixed 元素一旦落在 transform 祖先里，定位基准会变成那个祖先，菜单就会跑偏。
+   ⚠️ 菜单必须**不透明**：它是浮层，半透明会和底下的正文叠字（本项目在弹出层上栽过一次）。
+   ============================================================ */
+.bp-ctx {
+  position: fixed;
+  z-index: 60;
+  min-width: 168px;
+  padding: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.bp-ctx__row {
+  position: relative;
+}
+
+.bp-ctx__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bp-ctx__item:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.bp-ctx__item:disabled {
+  color: var(--text-4);
+  cursor: default;
+}
+
+.bp-ctx__item.is-danger {
+  color: var(--danger);
+}
+
+.bp-ctx__item.is-danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+
+.bp-ctx__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bp-ctx__hint {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-4);
+}
+
+.bp-ctx__check,
+.bp-ctx__arrow {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.bp-ctx__sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line-faint);
+}
+
+/* 子菜单：展开交给 CSS（`:hover >`），不开 JS 状态 —— 少一个状态就少一种"没收起来"的可能 */
+.bp-ctx__sub {
+  display: none;
+  position: absolute;
+  left: calc(100% + 2px);
+  top: -5px;
+  min-width: 148px;
+  padding: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.bp-ctx__row.has-sub:hover > .bp-ctx__sub {
+  display: block;
+}
+
+/* 屏幕右侧放不下时往左翻（`right: calc(100% + 2px)`），免得子菜单整个在屏幕外 */
+.bp-ctx.is-flip .bp-ctx__sub {
+  left: auto;
+  right: calc(100% + 2px);
+}
+
+/* ============================================================
+   表格悬浮操作层（2026-09-22，规格 一·二）
+   ------------------------------------------------------------
+   表格手柄（拖整表）· 顶边列手柄点 + 右侧「+」· 左边行手柄点 + 下方「+」· 右/下边缘虚线感应区。
+
+   三条硬约束（与 TableAfford.tsx 的文件头一一对应）：
+     ① 全部挂在**元素盒子外沿**（top/left 为负）：表格内部每一格都要能被点中，
+        按钮压在格子上会抢走"点这一格"这个最常用的动作；
+     ② 尺寸一律乘 `--bp-inv`(=1/缩放)：否则 50% 缩放下这些 16px 的小按钮会小到点不着；
+     ③ 容器 `pointer-events: none` + 子元素 `auto`：这一层覆盖整个表格，
+        不这样做的话**整个表格都点不动了**（这一条最容易漏，漏了 100% 复现）。
+   ============================================================ */
+.bp-tbl-afford {
+  position: absolute;
+  inset: 0;
+  /* ③ 容器不吃事件，只有按钮吃 —— 否则表格内部全被这层盖住 */
+  pointer-events: none;
+  z-index: 3;
+}
+
+.bp-tbl-afford__grip {
+  position: absolute;
+  left: calc(-20px * var(--bp-inv, 1));
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(16px * var(--bp-inv, 1));
+  height: calc(26px * var(--bp-inv, 1));
+  padding: 0;
+  border: 1px solid var(--pp-line);
+  border-radius: calc(3px * var(--bp-inv, 1));
+  background: var(--pp-surface);
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.bp-tbl-afford__grip:active {
+  cursor: grabbing;
+}
+
+/* 六个小点 = 通用"抓手"图形。不用图标字体，也不引图标库（项目只用自绘 SVG 与 CSS 图形） */
+.bp-tbl-afford__dots {
+  width: calc(6px * var(--bp-inv, 1));
+  height: calc(12px * var(--bp-inv, 1));
+  background-image: radial-gradient(circle, var(--pp-ink-mute) calc(1px * var(--bp-inv, 1)), transparent 0);
+  background-size: calc(3px * var(--bp-inv, 1)) calc(4px * var(--bp-inv, 1));
+  background-position: 0 0;
+}
+
+/* ---- 列：顶边 ---- */
+.bp-tbl-afford__col {
+  position: absolute;
+  top: calc(-19px * var(--bp-inv, 1));
+  height: calc(17px * var(--bp-inv, 1));
+  display: flex;
+  /* column-reverse：JSX 里是「先 mark 后 plus」，倒过来渲染成「plus 在上、mark 贴边」 */
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: calc(1px * var(--bp-inv, 1));
+  transform: translateX(-50%);
+}
+
+/* ---- 行：左边 ---- */
+.bp-tbl-afford__row {
+  position: absolute;
+  left: calc(-20px * var(--bp-inv, 1));
+  height: calc(15px * var(--bp-inv, 1));
+  display: flex;
+  /* row-reverse：plus 在更左、mark 贴左边框 */
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: calc(1px * var(--bp-inv, 1));
+  transform: translateY(-50%);
+}
+
+/* 手柄点：贴住边界的短标记（只做视觉提示，不吃事件） */
+.bp-tbl-afford__mark {
+  flex: none;
+  background: var(--accent);
+  border-radius: calc(1px * var(--bp-inv, 1));
+  pointer-events: none;
+}
+
+.bp-tbl-afford__col .bp-tbl-afford__mark {
+  width: calc(2px * var(--bp-inv, 1));
+  height: calc(8px * var(--bp-inv, 1));
+}
+
+.bp-tbl-afford__row .bp-tbl-afford__mark {
+  width: calc(8px * var(--bp-inv, 1));
+  height: calc(2px * var(--bp-inv, 1));
+}
+
+/* 「+」：点一下就插一行 / 一列 */
+.bp-tbl-afford__plus {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(14px * var(--bp-inv, 1));
+  height: calc(14px * var(--bp-inv, 1));
+  padding: 0;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  background: var(--pp-surface);
+  color: var(--accent);
+  font-size: calc(11px * var(--bp-inv, 1));
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.bp-tbl-afford__plus:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+
+.bp-tbl-afford__plus:disabled {
+  border-color: var(--pp-line);
+  color: var(--pp-ink-mute);
+  cursor: default;
+}
+
+/* ---- 边缘虚线感应区：点一下追加一行 / 一列 ---- */
+.bp-tbl-afford__edge {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.bp-tbl-afford__edge.is-bottom {
+  left: 0;
+  right: 0;
+  bottom: calc(-9px * var(--bp-inv, 1));
+  height: calc(7px * var(--bp-inv, 1));
+  border-bottom: 1px dashed var(--accent);
+}
+
+.bp-tbl-afford__edge.is-right {
+  top: 0;
+  bottom: 0;
+  right: calc(-9px * var(--bp-inv, 1));
+  width: calc(7px * var(--bp-inv, 1));
+  border-right: 1px dashed var(--accent);
+}
+
+.bp-tbl-afford__edge:hover {
+  background: var(--accent-soft);
+}
+
+/* ---------------- 拖行高 / 列宽时的预览线与数值浮层（规格 三） ----------------
+ *
+ * 规格原话："按下拖拽时：显示一根 1px 主题色（蓝色）预览线跟随鼠标，
+ * 旁边浮层显示当前像素值（如 120px）。"
+ *
+ * ⚠️ 这两个是 `position: fixed`（视口坐标）⇒ 必须挂在**未被缩放**的画布根节点上，
+ *    不能放进 `.bp-paper`（那里有 `transform: scale()`，线会跟着缩放并偏移一个页边距）。
+ * ⚠️ 都 `pointer-events: none`：预览线横跨整屏，吃事件的话拖动过程中指针一进线里就丢指针捕获。
+ */
+.bp-size-ghost {
+  position: fixed;
+  z-index: 55;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.bp-size-ghost--col {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.bp-size-ghost--row {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.bp-size-ghost__tag {
+  position: fixed;
+  z-index: 55;
+  transform: translate(10px, -50%);
+  padding: 1px 6px;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ---------------- 单元格作为素材容器（2026-09-22，规格 六） ----------------
+ *
+ * 规格原文："拖拽悬停在某个单元格上方时，该单元格出现**吸附动效**：
+ * 2px 主题色描边脉冲呼吸 + 轻微放大（scale 1.02，300ms 缓动），并在鼠标旁显示落点提示。"
+ *
+ * ⚠️ 这条规则**追加**在既有 `.bp-el-cell.is-drop-target` 之后（不覆盖它原有的背景提示），
+ *    只往上加描边与呼吸 —— 两个信号一起给："这一格"（描边）+ "正在悬停"（呼吸）。
+ */
+.bp-el-cell__child {
+  display: block;
+  width: 100%;
+}
+
+.bp-el-cell__child-img {
+  display: block;
+  width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* 码：svg 串是 innerHTML 注入的，尺寸得由这里定 */
+.bp-el-cell__child-code {
+  display: block;
+  width: 100%;
+}
+
+.bp-el-cell__child-code svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.bp-el-cell__child-text {
+  display: block;
+}
+
+.bp-el-cell__child-hr {
+  display: block;
+  border-top: 1px solid;
+}
+
+.bp-el-cell__child-ph {
+  display: block;
+  font-size: calc(9px * var(--bp-inv, 1));
+  line-height: 1.3;
+  color: var(--pp-ink-mute);
+}
+
+@keyframes bpCellSnap {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 calc(3px * var(--bp-inv, 1)) color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+}
+
+.bp-el-cell.is-drop-target {
+  position: relative;
+  z-index: 2;
+  outline: calc(2px * var(--bp-inv, 1)) solid var(--accent);
+  outline-offset: calc(-2px * var(--bp-inv, 1));
+  transform: scale(1.02);
+  transition: transform 300ms ease;
+  animation: bpCellSnap 1.2s ease-in-out infinite;
+}
+
+/* ---------------- 「表格尺寸」浮层（规格 一，2026-09-22） ----------------
+ *
+ * 规格："添加表格时弹出默认行列数选择（默认 3 行 × 4 列）"。
+ * 浮在刚插入的表格右侧（`position: fixed`，视口坐标）—— 与右键菜单同理，
+ * 放进被 `transform: scale()` 缩放的纸张里会跟着缩放并偏一个页边距。
+ */
+.bp-tsp {
+  position: fixed;
+  z-index: 58;
+  width: 176px;
+  padding: 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  font-size: 12px;
+}
+
+.bp-tsp__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.bp-tsp__title {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.bp-tsp__close {
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.bp-tsp__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.bp-tsp__label {
+  color: var(--text-2);
+}
+
+.bp-tsp__ctrl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bp-tsp__btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.bp-tsp__btn:disabled {
+  color: var(--text-4);
+  cursor: default;
+}
+
+/* 数字用等宽数字，点加号时不会因为位数变化而左右跳 */
+.bp-tsp__val {
+  min-width: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+}
+
+.bp-tsp__check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 4px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.bp-tsp__foot {
+  margin: 4px 0 0;
+  color: var(--text-4);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+/* 工具条上的边框粗细下拉：与那排小按钮同一高度，别把工具条撑高 */
+.bp-rbar__select {
+  height: 22px;
+  padding: 0 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+/* 拖出矩形的预览框（规格 一 后半句）：虚线 + 淡主题色底，一眼看出松手会建多大的表 */
+.bp-rect-preview {
+  position: absolute;
+  border: 1.5px dashed var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  pointer-events: none;
+}
+
+/* ---------------- 「拖出表格」入口（规格 一 后半句） ----------------
+ *
+ * 上一轮的教训：换算逻辑做完了但**没有入口**（面板拖拽的按下点总在纸张外）⇒ 这条补上。
+ */
+.bp-rectbtn {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 20;
+  padding: 4px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.bp-rectbtn.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* 画框层：只在「拖出表格」模式下存在，常驻会把画布的点击/拖拽全吃掉 */
+.bp-rectlayer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  cursor: crosshair;
+}
+
+/* 视口坐标的那一框（覆盖层是 fixed，所以预览框也跟着 fixed） */
+.bp-rect-preview.is-floating {
+  position: fixed;
+  z-index: 41;
+}
+
+/* 从格子里往外拖子元素时的浮标（规格 六）：视口坐标，跟着指针走 */
+.bp-child-ghost {
+  position: fixed;
+  z-index: 56;
+  padding: 2px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* 表格悬浮菜单里的小字提示（编辑态下告诉用户怎么框选） */
+.bp-table-bar__hint {
+  color: var(--text-4);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* 危险动作（删除表格）：红色，hover 时给一层淡底 */
+.bp-table-bar__btn.is-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.bp-table-bar__btn.is-danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+
+/* ---------------- 格内子元素（真机反馈第 3 条） ----------------
+ *
+ * 用户：「对于单元格中的附件、图片、二维码和条形码，显示样式应该和其他字段元素一样，
+ * 其他元素为**蓝色**按钮颜色，这些可以给改为**绿色**按钮样式，写着元素类型如「图片」。」
+ *
+ * ⇒ 子元素用**绿色**描边（字段占位符是蓝色），右上角挂一枚写类型的小胶囊：
+ *   一眼分清「这一格里的东西是字段（蓝）还是真的元素（绿）」。
+ */
+.bp-el-cell__child {
+  position: relative;
+  outline: 1px solid var(--success, #0f8f5f);
+  outline-offset: -1px;
+}
+
+.bp-el-cell__child::after {
+  content: attr(data-kind);
+  position: absolute;
+  right: 0;
+  top: 0;
+  padding: 0 calc(3px * var(--bp-inv, 1));
+  border-bottom-left-radius: calc(3px * var(--bp-inv, 1));
+  background: var(--success, #0f8f5f);
+  color: #fff;
+  font-size: calc(8px * var(--bp-inv, 1));
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+/* 选中态（2026-09-22 真机反馈第 3 条的收尾）：
+ * 绿色描边说明"这是元素、不是字段"，**选中**必须换成主题色 —— 与自由层元素选中同一套语义
+ * （蓝框 = 你选中的就是我）。只有绿框加粗的话，用户分不清"选中了"和"它本来就有个绿框"。
+ * 不加底纹：盖在图片上的半透明底色会把图片染色，看起来像图片坏了。 */
+.bp-el-cell__child.is-selected {
+  outline: calc(2px * var(--bp-inv, 1)) solid var(--accent);
+  outline-offset: calc(-1px * var(--bp-inv, 1));
+  z-index: 1;
+}
+
+/* ---------------- 格内元素的**占位形态**（2026-09-23 真机反馈第 2 条） ----------------
+ *
+ * 用户原话：「单元格内的图片/二维码是**窄条**的，视觉风格和其他单元格内的元素不一样」。
+ *
+ * 两种"窄条"的来源都在这儿：
+ *   · 图片还没选图时 `<img src="">` 会塌成一条细线（宽度有、高度几乎没有）；
+ *   · 二维码没绑到值时只渲染一行小灰字（`bp-el-cell__child-ph`）。
+ * 两者都不是"元素形状"，于是格子里出现一条 12px 高的细条（实测：h=12 vs 单元格 h=43）。
+ *
+ * 现在统一成**占位盒**：虚线边框 + 居中两行（类型名 + 怎么办），并给一个最小高度，
+ * 让它看起来就是"这里以后会有一个元素"。码元素直接复用自由层那套 `bp-el-code--ph`
+ * （角标/名称/说明），两处同一套视觉语言。
+ */
+.bp-el-cell__child-phbox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(1px * var(--bp-inv, 1));
+  width: 100%;
+  /* 覆盖 `.bp-el-code` 的 `height: 100%`：格内是流式排版，父高是 auto，100% 会失去意义 */
+  height: auto;
+  min-height: calc(34px * var(--bp-inv, 1));
+  padding: calc(3px * var(--bp-inv, 1));
+  border: 1px dashed var(--pp-line);
+  border-radius: calc(4px * var(--bp-inv, 1));
+  background: var(--pp-surface-2);
+  color: var(--pp-ink-mute);
+  font-size: calc(9px * var(--bp-inv, 1));
+  line-height: 1.35;
+  text-align: center;
+}
+
+.bp-el-cell__child-phbox-title {
+  color: var(--pp-ink);
+  font-weight: 600;
+}
+
+/* 未绑定 / 未填写时给一点警示色，与自由层 `is-warn` 同一口径 */
+.bp-el-cell__child-phbox.is-warn {
+  border-color: var(--warning);
+}
+
+/* 码：**等比缩放到给定的框内**（2026-09-23 第 8 条）。
+ *
+ * `height:100%` 让 svg 跟着外层盒子走 —— 盒子高度是用户填的「高」（mm）时，
+ * 码就被限制在这个框里（SVG 默认 `preserveAspectRatio="xMidYMid meet"`，等比缩放 + 居中）；
+ * 盒子高度是 auto 时 `height:100%` 按标准退回 auto ⇒ 行为与以前一致（不会突然变形）。
+ *
+ * ⚠️ 这里**永远不给 `fill`/`cover`**：变形的二维码是**扫不出来**的
+ *    （见 `qrCodeSvg` 那边的同一条注释）。所以格内码不提供"拉伸/裁剪"档，
+ *    面板里对码只给「占格宽 / 高」，并写明"等比缩放到框内"。
+ */
+.bp-el-cell__child-code svg {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+}
+
+/* 竖排标签现在是个 <button>（点击定位到该分区）⇒ 补上可点的光标与 reset */
+.bp-band__gutter .bp-band__chip {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.bp-band__gutter .bp-band__chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---------------- 页边距标签（真机反馈 2026-09-22 重做） ----------------
+ *
+ * 用户原话：「这个字体也很丑，优化一下，至少符合飞书的画风」。
+ * 原来是红底白字的胶囊（像个告警），现在是**飞书式的浅灰胶囊**：
+ * 1px 边、圆角、11px 正文色 —— 是"尺寸标注"，不是"警告"。
+ */
+.bp-margin-rule__chip {
+  margin: 0 calc(3px * var(--bp-inv, 1));
+  padding: calc(1px * var(--bp-inv, 1)) calc(6px * var(--bp-inv, 1));
+  border: 1px solid var(--pp-line);
+  border-radius: calc(4px * var(--bp-inv, 1));
+  background: var(--pp-surface);
+  color: var(--pp-ink-mute);
+  font-family: inherit;
+  font-size: calc(10px * var(--bp-inv, 1));
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.bp-margin-rule__chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 原地编辑时的输入框：与**标签同一套定位**（绝对定位 + 四条边各自的 transform）。
+ *
+ * ⚠️ 原来这里只有尺寸/配色，**没有定位**（2026-09-23 真机反馈第 1 条：
+ *    「点击页面上的边距修改，不会在原地触发编辑，编辑框会弹到其他地方」）。
+ *    原因：`.bp-margin-rule` 是 `position:absolute; height:0` 的零高度尺子，输入框作为它的
+ *    静态子元素就落在**尺子的起点**（纸张左边），于是编辑框跑到画布最左边去了。
+ *    标签用 `position:absolute` + `--top/--bottom/--left/--right` 的 transform 才停在线中点，
+ *    输入框必须照抄这四条规则 —— 两处各写一套的下场就是"标签对、输入框错"。
+ */
+.bp-margin-rule__input {
+  position: absolute;
+  width: calc(46px * var(--bp-inv, 1));
+  padding: calc(1px * var(--bp-inv, 1)) calc(5px * var(--bp-inv, 1));
+  border: 1px solid var(--accent);
+  border-radius: calc(4px * var(--bp-inv, 1));
+  background: var(--pp-surface);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: calc(10px * var(--bp-inv, 1));
+  line-height: 1.4;
+  text-align: center;
+}
+
+.bp-margin-rule--left .bp-margin-rule__input {
+  left: -6px;
+  top: 50%;
+  transform: translate(-100%, -50%);
+}
+.bp-margin-rule--right .bp-margin-rule__input {
+  left: 6px;
+  top: 50%;
+  transform: translate(0, -50%);
+}
+.bp-margin-rule--top .bp-margin-rule__input {
+  top: -6px;
+  left: 50%;
+  transform: translate(-50%, -100%);
+}
+.bp-margin-rule--bottom .bp-margin-rule__input {
+  top: 6px;
+  left: 50%;
+  transform: translate(-50%, 0);
+}
+
+/* 格内的附件子元素（真机反馈：附件要能放进单元格）——画布上只能显示"它是哪个字段" */
+.bp-el-cell__child-attach {
+  display: block;
+  padding: calc(1px * var(--bp-inv, 1)) calc(4px * var(--bp-inv, 1));
+  border-radius: calc(3px * var(--bp-inv, 1));
+  background: color-mix(in srgb, var(--success, #0f8f5f) 12%, transparent);
+  color: var(--success, #0f8f5f);
+  font-size: calc(9px * var(--bp-inv, 1));
+  line-height: 1.5;
+}

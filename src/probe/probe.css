@@ -1,0 +1,495 @@
+/* 探针面板样式。全部走 tokens.css 的变量，保证暗黑模式可用。 */
+
+.probe {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  padding-bottom: 96px;
+  min-width: 0;
+}
+
+.probe-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--sp-4);
+  min-width: 0;
+}
+
+.probe-intro-title {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text-1);
+}
+
+.probe-intro-text {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  color: var(--text-2);
+}
+
+.probe-intro-text b {
+  color: var(--text-1);
+  font-weight: var(--fw-medium);
+}
+
+.probe-actions {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.probe-actions .probe-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.probe-btn {
+  appearance: none;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  padding: 7px 14px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast);
+  white-space: nowrap;
+}
+
+.probe-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.probe-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.probe-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.probe-btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.probe-check {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-start;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.probe-check input {
+  margin: 2px 0 0;
+  flex: none;
+  accent-color: var(--accent);
+}
+
+.probe-alert {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-start;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+}
+
+.probe-alert.danger {
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.probe-alert-icon {
+  flex: none;
+  font-weight: var(--fw-semibold);
+}
+
+.probe-progress {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: center;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+
+.probe-pulse {
+  grid-row: 1 / span 2;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: probe-pulse 1.4s ease-out infinite;
+}
+
+@keyframes probe-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--accent-soft-strong);
+  }
+  70% {
+    box-shadow: 0 0 0 9px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.probe-progress-text {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.probe-bar {
+  grid-column: 2;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.probe-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--r-pill);
+  transition: width var(--t-base);
+}
+
+.probe-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.probe-row {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3) var(--sp-4);
+  min-width: 0;
+}
+
+.probe-row.status-ok {
+  border-left-color: var(--success);
+}
+.probe-row.status-warn {
+  border-left-color: var(--warning);
+}
+.probe-row.status-fail {
+  border-left-color: var(--danger);
+}
+.probe-row.status-skip {
+  border-left-color: var(--line-strong);
+}
+
+/* 还没跑过的探针：中性、不抢眼 */
+.probe-row.status-idle {
+  border-left-color: var(--line);
+}
+
+.probe-badge.status-idle {
+  background: var(--surface-3);
+  color: var(--text-3);
+}
+
+/* ---------------- 常用组合按钮 ---------------- */
+
+.probe-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+@media (max-width: 340px) {
+  .probe-groups {
+    grid-template-columns: 1fr;
+  }
+}
+
+.probe-group-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  text-align: left;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  padding: 6px 10px;
+}
+
+.probe-group-count {
+  flex: none;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  text-align: center;
+}
+
+/* ---------------- 每条探针的独立运行按钮 ---------------- */
+
+.probe-row-head-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.probe-run-one {
+  flex: none;
+  white-space: nowrap;
+}
+
+.probe-row-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: var(--sp-3);
+  align-items: center;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+}
+
+.probe-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: #fff;
+}
+
+.probe-badge.status-ok {
+  background: var(--success);
+}
+.probe-badge.status-warn {
+  background: var(--warning);
+}
+.probe-badge.status-fail {
+  background: var(--danger);
+}
+.probe-badge.status-skip {
+  background: var(--line-strong);
+}
+
+.probe-row-titles {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.probe-row-id {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+}
+
+.probe-row-title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.probe-row-state {
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.probe-chevron {
+  flex: none;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--text-3);
+  transition: transform var(--t-fast);
+}
+
+.probe-chevron.open {
+  transform: rotate(180deg);
+}
+
+.probe-row-detail {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  color: var(--text-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * 运行前必读的提醒（`ProbeDef.notice`）。
+ *
+ * 为什么**常驻**、不放进展开区：P12 会真的改掉插件面板尺寸，而 SDK 没有还原接口。
+ * "跑完才看到提醒"等于没提醒 —— 用户那时候已经改完了。所以它就跟在标题下面。
+ * 颜色走令牌（--warning / --danger 及其 soft 变体），暗黑模式下自动跟随。
+ */
+.probe-notice {
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  border-left: 3px solid var(--warning);
+  background: var(--warning-soft);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  color: var(--text-1);
+  overflow-wrap: anywhere;
+}
+
+/* soloOnly：改动不可自动还原，用更重的语义色 */
+.probe-notice-solo {
+  border-left-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.probe-notice-label {
+  display: inline-block;
+  margin-right: var(--sp-2);
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--warning);
+  color: var(--text-on-accent);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  vertical-align: 1px;
+}
+
+.probe-notice-solo .probe-notice-label {
+  background: var(--danger);
+}
+
+.probe-row-body {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.probe-note {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.probe-note-label {
+  display: block;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-3);
+  margin-bottom: 2px;
+}
+
+.probe-pre {
+  margin: 0;
+  padding: var(--sp-3);
+  background: var(--surface-inset);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-md);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--text-2);
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.probe-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-bottom-bar);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+.probe-hint {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-3);
+}
+
+/* ---------------- 选中态实时监听卡片 ---------------- */
+
+.probe-live {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  border-left: 3px solid var(--accent);
+}
+
+.probe-live-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+
+.probe-live-count {
+  font-size: 28px;
+  font-weight: var(--fw-semibold);
+  line-height: 1.1;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.probe-live-count.ok {
+  color: var(--success);
+}
+
+.probe-live-label {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}

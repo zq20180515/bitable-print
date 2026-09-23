@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>print-fidelity-probe</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #e9ecef;
+        font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      }
+      .wrap {
+        display: flex;
+        gap: 12px;
+        padding: 12px;
+        align-items: flex-start;
+      }
+      .case {
+        background: #fff;
+        border: 1px solid #cfd4da;
+        padding: 8px;
+      }
+      .case h3 {
+        margin: 0 0 6px;
+        font-size: 12px;
+        color: #1f2329;
+      }
+      .case pre {
+        margin: 6px 0 0;
+        font-size: 10px;
+        line-height: 1.35;
+        white-space: pre-wrap;
+        color: #333;
+        max-width: 320px;
+      }
+      iframe {
+        border: 0;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap" id="cases"></div>
+    <script>
+      // 探针的失败原因必须能被运行器读到：无头环境下"页面没出结果"和"页面报错"
+      // 看起来一模一样，只有把错误收集起来才分得清。
+      window.__errors = []
+      window.addEventListener('error', (e) => {
+        window.__errors.push(String((e && (e.message || e.error)) || 'unknown error'))
+      })
+      window.addEventListener('unhandledrejection', (e) => {
+        window.__errors.push('unhandledrejection: ' + String((e && e.reason && e.reason.message) || e.reason))
+      })
+    </script>
+    <script type="module" src="/test/print-fidelity-probe.ts"></script>
+  </body>
+</html>

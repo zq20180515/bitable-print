@@ -1,0 +1,94 @@
+node_modules/
+# ⚠️⚠️ dist/ 绝对不能 ignore（2026-09-23 上架 GitHub 时改）
+# 飞书插件审核方的硬性要求是「仓库里必须有一份能直接跑的 dist/」——
+# 审核方**不替我们跑构建**。dist/ 被 gitignore 挡住时 `git add -A` 会**静默跳过**
+# 且不报错，推送看似成功、审核方拉下来却没有产物（这就是最高频的驳回原因）。
+# 想让 GitHub 的 diff 保持干净的旧做法在这里必须让位。
+# dist-ssr/ 是纯前端项目不可能产生的目录，继续忽略。
+dist-ssr/
+# 出包产物（`node scripts/pack.mjs` 生成：deploy/ 是"只有该上传的东西"，zip 是上传用）
+# ⚠️ 这两条是**必须**的：deploy/ 里是 dist 的副本，zip 里是 1.7MB 的构建产物 ——
+#    入库了会变成"每次构建都产生一次 diff"的噪声源。
+deploy/
+bitable-print-v*.zip
+*.local
+.DS_Store
+*.log
+.vite/
+probe-report.json
+# 自测打包产物（由 esbuild 从同名 .ts 生成，不入库）
+# ⚠️ 只忽略 .cjs。test/ 下的 .mjs 是**手写**的验证脚本（CDP 直连驱动：
+# e2e-smoke / editor-interaction / editor-cell-edit / loop-table-browser / shot / run-node-suites），
+# 它们是源文件，必须入库 —— 千万不要再加 `test/*.mjs`。
+# （2026-09-21 更正：这里原先把 paste-roundtrip / window-handshake / editor-window-wiring
+#   三个脚本也列在"必须入库"里，它们随"独立窗口编辑"整体删除了，名单已去掉。）
+test/*.cjs
+# 点号开头的生成物（`test/*.cjs` 的 glob 不匹配前导点，得单独写）
+test/.*.cjs
+# 端到端测试与探针的临时产物
+.e2e-out.txt
+.e2e-log.txt
+.probe-dom.html
+.probe-err.txt
+# 子 agent / 工具把命令输出重定向到根目录时的临时文件（本机 Bash 的 stdout 常被吞，
+# 需要写文件再读回，容易留下这类垃圾）。
+# 下面这组是把「同一种产物但换了扩展名」补齐 —— 只忽略 _*.txt / _*.log 是不够的：
+# 实际上子 agent 还会留下 _*.mjs（一次性探针脚本）、_*.cjs、_*.tmp / _*.out.tmp（stdout 落盘）、
+# _*.err（只装 stderr，常常是 7 个字节的 "EPIPE\n"）、_*.md（报告草稿）。
+# 统一以 `_` 开头作为「非交付物」的约定，别在这里逐个列举。
+# ⚠️ `_*.mjs` 只匹配**下划线开头**的探针脚本，与上面那条「千万不要再加 `test/*.mjs`」
+#    不冲突 —— 探针可以忽略，手写验证脚本必须入库，两者的区别就是文件名有没有 `_` 前缀。
+_*.txt
+_*.log
+_*.mjs
+_*.cjs
+_*.tmp
+_*.err
+_*.md
+# 证据归档目录（同样的临时产物，但成目录存在，`_*.txt` 盖不住）
+_*-evidence/
+# 子 agent 常把调试输出写到 .tmp-* （同上，stdout 被吞时的临时文件）
+.tmp-*
+# 界面截图工具（test/shot.mjs）的产出
+.shots/
+.shots-final/
+.shots-redesign/
+# 打印保真度探针（test/print-fidelity-run.mjs）的产出：改前/改后截图 + 逐块实测 JSON
+.shots-fidelity/
+# 测试残留：历史版本的浏览器 profile 曾建在项目根下（现已改为 os.tmpdir()，不再新增）。
+# 这些目录删不掉是 Windows 句柄未释放导致的，保留 ignore 以免污染 git status。
+.*-profile*/
+.pp/
+
+# ─────────────────────────────────────────────────────────────
+# 上架 GitHub 时追加（2026-09-23）：本仓库只收「实际生效的代码」
+# ─────────────────────────────────────────────────────────────
+# 根目录躺着 730 个 `_` 前缀的产物：一次性探针脚本、命令输出落盘（stdout 被吞时的
+# 文件回读）、证据归档、`_removed-*/` 删除快照、`_frames/` 抽帧、`_shots/` 截图。
+# 上面那组 `_*.txt` / `_*.log` / … 只盖住了**文件**，盖不住同名的**目录**，
+# 用一条 `_*` 统一收口（`.gitignore` 的 `_*` 同时匹配文件与目录）。
+# 约定：名字以 `_` 开头 = 非交付物。
+_*
+# 内部调试手册（逐条点击探针的操作指南），与插件运行无关，不随仓库发布
+PROBE-GUIDE.md
+# 测试素材：e2e 用的样例图片与样例模板 JSON。仓库只保留**手写测试脚本**（test/*.mjs），
+# 不随仓库分发测试数据与图片。
+test/fixtures/
+# 根级「点开头」的临时物：本机 Bash 的 stdout 常被吞，只能把命令输出重定向到文件再读回，
+# 于是根目录会持续长出 .wz-*.txt / .e.txt / .cell.txt / .build.txt 这类落盘垃圾，
+# 以及 .shots-before/ 这类截图目录。上面逐条列举的（.e2e-out.txt / .tmp-* / .shots/ …）
+# 挡不住"下一个新名字"。统一用 `.*` 收口，再用 `!` 放行真正该入库的点开头配置。
+# ⚠️ 以后新增点开头的**配置文件**（如 .editorconfig）记得往白名单里补一行。
+.*
+!.gitignore
+!.gitattributes
+!.github/
+!.editorconfig
+!.npmrc
+!.nvmrc
+!.node-version
+!.eslintrc*
+!.prettierrc*
+!.stylelintrc*
+!.env.example
+!.env.sample

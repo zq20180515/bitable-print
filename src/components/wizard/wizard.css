@@ -1,0 +1,3111 @@
+/**
+ * 四步向导样式。
+ * 外壳（.wiz / .wiz-steps / .wiz-foot / .seg / .wiz-pick 等）在 styles/app.css 里统一维护，
+ * 这里只补向导内部各步骤专有的部分。所有颜色走 tokens.css 变量。
+ *
+ * 布局基线（窄侧栏 320–400px）：
+ *   · 步骤条只占一行 + 一条进度线（≈38px），把纵向空间让给内容；
+ *   · 区块用 .wiz-group 承载，组内 gap 6px、组间 12px，形成"高密度但透气"的节奏；
+ *   · 主按钮全局只有一个，永远在底部同一位置。
+ */
+
+/* ⛔ 「内联编辑器的全屏容器」那一整段样式（`.wz-editor-host` / `.wz-editor-host > *`）
+   与「内联兜底提示条」`.wz-fallback-note` **已移除**（2026-09-21）。
+
+   它们属于"独立窗口没能打开 → 侧边栏内联展开画布"那条分支；那条分支连同独立窗口
+   一起删掉了（现在编辑器是插件内的 `.bp-fs` 全屏浮层，样式在 `editor/editor.css`，
+   portal 到 `document.body`，**不需要**宿主容器）。
+   两个类都已经没有任何使用方 —— 留着只会让人以为界面上还有这东西。
+   注：`MergeConfirm.tsx` 里有一句注释把 `.wz-editor-host` 当 z 层级的参照物，
+   那句话也一并改了，别再从 DOM 里找一个不存在的元素当标尺。 */
+
+/*
+ * 预览页「自定义：每 [__] 条」（2026-09-19 用户要求）。
+ *
+ * 档位只有 自动/1/5/10 四档，实际排版常需要 3/6/8 这种数 ⇒ 给一个输入框。
+ * 与四个档位并排、同一行视觉重量，所以用同一套字体与高度。
+ */
+.wiz-perpage-custom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--sp-2);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.wiz-perpage-custom .wiz-num {
+  width: 72px;
+}
+
+/* ⛔ 「独立窗口编辑中的状态条」样式（.wz-winbar / -dot / -text / -actions）已移除
+   （2026-09-21）：那套组件（WindowNotice / LinkWarning）随"独立窗口编辑"整体删除。
+   样式留着不会报错，但会让后来人以为界面上还有这东西 —— 所以一并清掉。 */
+
+/* ============================================================
+   步骤条 —— 一行四步 + 进度线
+   ============================================================ */
+
+nav.wiz-steps {
+  display: block;
+  flex: none;
+  padding: var(--sp-2) var(--sp-3) 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.wiz-steps-list {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.wiz-steps-list > li {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.wiz-steps .wiz-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  padding: 3px 4px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--t-fast);
+}
+
+.wiz-steps .wiz-step:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.wiz-steps .wiz-step:disabled {
+  cursor: default;
+}
+
+.wiz-steps .wiz-step:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.wiz-steps .wiz-step-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.wiz-steps .wiz-step-label {
+  min-width: 0;
+  max-width: 100%;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wiz-steps .wiz-step.active {
+  background: var(--accent-soft);
+}
+
+.wiz-steps .wiz-step.active .wiz-step-dot {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.wiz-steps .wiz-step.active .wiz-step-label {
+  color: var(--accent);
+  font-weight: var(--fw-medium);
+}
+
+.wiz-steps .wiz-step.done .wiz-step-dot {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.wiz-steps .wiz-step.done .wiz-step-label {
+  color: var(--text-2);
+}
+
+.wiz-steps .wiz-step:disabled .wiz-step-dot {
+  opacity: 0.6;
+}
+
+.wiz-rail {
+  height: 2px;
+  margin-top: var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.wiz-rail-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  transition: width var(--t-base);
+}
+
+/* ============================================================
+   底部操作栏 —— 主按钮唯一
+   ============================================================ */
+
+.wiz .wiz-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-bottom-bar);
+  display: flex;
+  align-items: center;
+  /* 换行只为一件事：让 `.wiz-foot-hint` 独占一行跨满整栏（见下） */
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: 6px var(--sp-4);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+/*
+ * 底部操作栏里那一行反馈（2026-09-19）。
+ *
+ * 用户对"独立窗口打不开"给的正解："**建议直接留在（模板列表）这个界面，底部给点提示就行**。"
+ * `flex: 1 0 100%` 让它独占一行、跨满整栏，按钮仍在它下面那一行 ——
+ * 不这么做的话它会和「上一步 / 下一步」抢宽度，把主按钮挤窄。
+ *
+ * 为什么不用 `--warn` 的图标横幅：底部栏高度有限，横幅会把内容区顶掉一截；
+ * 这里只要"用户一定看得见 + 分得清成败"，一条带色的文字就够。
+ */
+.wiz-foot-hint {
+  flex: 1 0 100%;
+  margin: 0 0 2px;
+  padding-left: 7px;
+  border-left: 2px solid var(--line-strong);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.wiz-foot-hint.warn {
+  border-left-color: var(--warning);
+}
+.wiz-foot-hint.ok {
+  border-left-color: var(--success);
+  color: var(--text-2);
+}
+
+.wiz .wiz-foot .app-btn {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+}
+
+.wiz .wiz-foot .app-btn.primary {
+  flex: 1 1 auto;
+}
+
+.wiz-foot-note {
+  margin-left: auto;
+  min-width: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   内容骨架：分组 / 分组标题
+   ============================================================ */
+
+.wiz .wiz-block {
+  padding: var(--sp-4);
+  gap: var(--sp-3);
+}
+
+.wiz-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.wiz-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.wiz-group-title {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  color: var(--text-1);
+  min-width: 0;
+}
+
+.wiz-group-note {
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wiz .wiz-label {
+  margin-bottom: 0;
+}
+
+.wiz .wiz-hint {
+  margin: 0;
+}
+
+.wiz .app-section-body .wiz-hint {
+  margin-top: var(--sp-2);
+}
+
+.wiz .app-section-body > .wiz-hint:first-child {
+  margin-top: 0;
+}
+
+.wiz-count {
+  display: inline-block;
+  margin-left: var(--sp-1);
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  vertical-align: 1px;
+}
+
+/* ============================================================
+   步骤①：「打印什么」二选一（卡片式，比分段控件更能说清差别）
+   ============================================================
+   两张卡片**同排并列**：它们在语义上是二选一，一上一下会白吃约 76px 高度，
+   而窄侧栏最缺的就是纵向空间。卡片内边距与描述缩进相应收紧，保证两列下文字仍然读得顺。 */
+
+.wiz-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+/* 极窄（<340px）时两列会把描述挤成 3 行，这时退回上下堆叠更清楚 */
+@media (max-width: 339px) {
+  .wiz-choices {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.wiz-choice {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+
+.wiz-choice:hover {
+  background: var(--surface-hover);
+}
+
+.wiz-choice.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.wiz-choice-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.wiz-choice-mark {
+  position: relative;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.wiz-choice.on .wiz-choice-mark {
+  border-color: var(--accent);
+}
+
+.wiz-choice.on .wiz-choice-mark::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.wiz-choice-title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  color: var(--text-1);
+  min-width: 0;
+}
+
+/* 描述不再缩进对齐标题（两列下每 22px 都是宝贵宽度），换行交给 overflow-wrap */
+.wiz-choice-desc {
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+
+/* ============================================================
+   事实行（记录数 / 预计产出 / 页数 / 纸张）
+   ============================================================ */
+
+.wiz-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.wiz-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.wiz-fact-k {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.wiz-fact-v {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 紧凑版事实行（步骤①）：两个卡片原来各占一大格，信息量却只有两个数字，
+ * 在窄侧栏里非常挤。这里改成"标签 数值"同一行的小条 —— 结构不变
+ * （`.wiz-fact` / `.wiz-fact-k` / `.wiz-fact-v` 原样保留），只是不再抢版面。
+ */
+.wiz-facts.is-compact .wiz-fact {
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: 4px var(--sp-3);
+}
+
+.wiz-facts.is-compact .wiz-fact-v {
+  font-size: var(--fs-sm);
+}
+
+/* ============================================================
+   警示块 —— 默认一条摘要，展开才占地方
+   ============================================================ */
+
+.wiz-alert {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-left-color: var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-inset);
+  min-width: 0;
+}
+
+.wiz-alert.warn {
+  border-left-color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.wiz-alert.danger {
+  border-left-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.wiz-alert.ok {
+  border-left-color: var(--success);
+  background: var(--success-soft);
+}
+
+.wiz-alert-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--text-3);
+  color: var(--text-on-accent);
+  font-size: 11px;
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+}
+
+.wiz-alert.warn .wiz-alert-icon {
+  background: var(--warning);
+}
+
+.wiz-alert.danger .wiz-alert-icon {
+  background: var(--danger);
+}
+
+.wiz-alert.ok .wiz-alert-icon {
+  background: var(--success);
+}
+
+.wiz-alert-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.wiz-alert-title {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-1);
+  line-height: var(--lh-tight);
+  overflow-wrap: anywhere;
+}
+
+.wiz-alert-text {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.wiz-alert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* 可折叠警示的标题行：整行可点 */
+.wiz-alert-toggle {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.wiz-alert-chev {
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  transition: transform var(--t-fast);
+}
+
+.wiz-alert-chev.on {
+  transform: rotate(180deg);
+}
+
+/* ============================================================
+   预览：摘要 + 检查面板
+   ============================================================ */
+
+.wiz-prev-head {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+  background: var(--bg-page);
+}
+
+.wiz-sum {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.wiz-sum-title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.wiz-sum-title b {
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-semibold);
+}
+
+.wiz-sum-meta {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   输出：三种方式各自说明（浏览器不能静默出 PDF，文案必须诚实）
+   ============================================================ */
+
+.wiz-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.wiz-action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.wiz-action .app-btn {
+  width: 100%;
+}
+
+/* 独立成行的次要按钮（如骨架面板的"取消"）不该占满整行，否则和主按钮抢注意力 */
+.wiz-actions > .app-btn {
+  align-self: flex-start;
+  width: auto;
+  min-width: 88px;
+}
+
+.wiz-action-desc {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+
+/* ============================================================
+   通用小部件
+   ============================================================ */
+
+.wiz-inline-btns {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.wiz-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  appearance: none;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  padding: 4px 8px;
+}
+
+/* ⛔ `.wiz-paste-area`（「粘贴编辑结果」的输入区）已移除（2026-09-21）：
+   那个面板 `PasteResultPanel` 随"独立窗口编辑"整体删除，样式一并清掉。 */
+
+.wiz-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.wiz-note {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.wiz-note.warn {
+  color: var(--warning);
+}
+
+/* 「已自动选中你在多维表格里停留的那一条记录」——正向确认，用成功色 */
+.wiz-note.ok {
+  color: var(--success);
+}
+
+.wiz-note.danger {
+  color: var(--danger);
+}
+
+.wiz-note-label {
+  margin: var(--sp-3) 0 var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-3);
+}
+
+.wiz-tag {
+  display: inline-block;
+  margin-left: var(--sp-2);
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+
+.wiz-tag.ok {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.wiz-tag.warn {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.wiz-tag.bad {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.wiz-pre {
+  margin: 0;
+  padding: var(--sp-3);
+  background: var(--surface-inset);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-md);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--text-2);
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.wiz-btn-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.wiz-btn-grid .app-btn {
+  width: 100%;
+  padding: 6px 8px;
+}
+
+@media (max-width: 340px) {
+  .wiz-btn-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------------- 进度块（醒目，不能做成一条看不见的细线） ---------------- */
+
+.wiz-progress {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: center;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+
+.wiz-pulse {
+  grid-row: 1 / span 2;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: wiz-pulse 1.4s ease-out infinite;
+}
+
+@keyframes wiz-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--accent-soft-strong);
+  }
+  70% {
+    box-shadow: 0 0 0 9px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.wiz-progress-text {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wiz-progress .app-btn {
+  grid-row: 1 / span 2;
+  grid-column: 3;
+}
+
+.wiz-bar {
+  grid-column: 2;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.wiz-bar-fill {
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  background-image: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  background-size: 220% 100%;
+  animation: wiz-flow 1.3s linear infinite;
+  transition: width var(--t-base);
+}
+
+@keyframes wiz-flow {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
+.wiz-block-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.wiz-block-list li + li {
+  margin-top: 2px;
+}
+
+/* ---------------- 筛选条件行 —— ⛔ 整段已删除（2026-09-21） ----------------
+ *
+ * 用户要求"直接移除筛选条件这个功能"（他原话：用户完全可以在新视图里手动筛选需要打印的内容）。
+ * 随界面一起删掉的是这一段的样式：`.wiz-cond*`（条件卡片 / 字段-操作符两列网格 / 添加按钮 /
+ * 条件描述）、`.wiz-between`（区间取值的"至"字行）、`.wiz-opts` + `.wiz-opt`（多选值的胶囊选择器）。
+ *
+ * ⚠️ 删之前逐个数过引用：这 6 个类在 `src/` 与 `test/` 的所有 .ts/.tsx/.mts 里**出现 0 次**
+ *    （`grep -rn '"wiz-cond' src test --include=*.tsx --include=*.ts`）——
+ *    不是"看着像没人用"，是数过。
+ * ⚠️ 回滚：`_removed-2026-09-21-filter/`（含本文件改前快照 + restore.mjs）。
+
+/* ---------------- 空状态（纯 CSS 画一张纸） ---------------- */
+
+.wiz-empty {
+  padding: var(--sp-5) var(--sp-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-inset);
+  text-align: center;
+}
+
+.wiz-empty-art {
+  position: relative;
+  display: block;
+  width: 44px;
+  height: 56px;
+  margin: 0 auto var(--sp-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.wiz-empty-art i {
+  position: absolute;
+  left: 7px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--text-4);
+  opacity: 0.5;
+}
+
+.wiz-empty-art i:nth-child(1) {
+  top: 11px;
+  width: 19px;
+}
+.wiz-empty-art i:nth-child(2) {
+  top: 20px;
+  right: 7px;
+}
+.wiz-empty-art i:nth-child(3) {
+  top: 29px;
+  width: 24px;
+}
+.wiz-empty-art i:nth-child(4) {
+  bottom: 10px;
+  width: 14px;
+}
+
+.wiz-empty-title {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  color: var(--text-1);
+}
+
+/* ---------------- 模板卡片 ---------------- */
+
+.wiz-tpl-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-2);
+}
+
+@media (min-width: 560px) {
+  .wiz-tpl-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.wiz-tpl {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-2);
+  align-items: center;
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  min-width: 0;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+
+.wiz-tpl:hover {
+  background: var(--surface-hover);
+}
+
+.wiz-tpl.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.wiz-tpl-main {
+  appearance: none;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sp-2);
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.wiz-tpl-mark {
+  position: relative;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.wiz-tpl.on .wiz-tpl-mark {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.wiz-tpl.on .wiz-tpl-mark::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0;
+  width: 4px;
+  height: 8px;
+  border-right: 1.5px solid var(--text-on-accent);
+  border-bottom: 1.5px solid var(--text-on-accent);
+  transform: rotate(40deg);
+}
+
+.wiz-tpl-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+  min-width: 0;
+}
+
+/*
+ * 三行文字的层次（2026-09-19 用户反馈"文本的展示…不协调"后重排）。
+ *
+ * 原来名字 12px、纸张 11px、时间 11px —— 三行**几乎一样大**，
+ * 卡片上没有一个"落脚点"，看上去就是一行行平铺的字。
+ * 现在拉成明确的三级：**名字 13px 深色（主）→ 纸张 11px 次深 → 时间 11px 浅灰**。
+ * 只靠字号与深浅，不加粗不加框 —— 用户要的是"素直克制"，不是堆装饰。
+ */
+.wiz-tpl-name {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wiz-tpl-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  /* 纸张比时间重要一档（时间只是参考，纸张决定能不能用） */
+  color: var(--text-2);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.wiz-tpl-paper {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 类型胶囊的样式**统一写在下面「模板卡片」一节**（`.wiz-tpl .wiz-kind`）。
+ * 这里原来那份（`--warning-soft` 底 + `--warning` 字）已经删掉 ——
+ * 它只服务过斜向角标时代，而 `#ff8800` 的 11px 小字对比度只有 ~2.6:1，正是"看不清"的来源。
+ * 留两份互相矛盾的规则，下一个人只会照着错的那份改。
+ */
+.wiz-tpl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-1);
+  flex: none;
+}
+
+/* 弹出菜单：必须不透明 + 足额 z-index，否则会和下面卡片文字透叠 */
+.wiz-tpl-menu {
+  position: absolute;
+  right: var(--sp-2);
+  top: calc(100% - 4px);
+  z-index: var(--z-popover);
+  display: grid;
+  grid-template-columns: 1fr;
+  min-width: 150px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-1);
+}
+
+.wiz-tpl-menu button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  color: var(--text-1);
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.wiz-tpl-menu button:hover {
+  background: var(--surface-hover);
+}
+
+.wiz-tpl-menu button.danger {
+  color: var(--danger);
+}
+
+/* ---------------- 预览容器 ---------------- */
+
+.wiz-prev {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.wiz-prev-inner {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-sm);
+  background: var(--paper-canvas-bg);
+}
+
+.wiz-prev-frame {
+  border: 0;
+  display: block;
+}
+
+.wiz-prev-note {
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-3);
+}
+
+/* ---------------- Word 上传 ---------------- */
+
+.wiz-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  padding: var(--sp-6) var(--sp-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-inset);
+  cursor: pointer;
+  text-align: center;
+}
+
+.wiz-drop:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.wiz-drop-title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  color: var(--text-1);
+}
+
+/* ---------------- 占位符匹配 ---------------- */
+
+.wiz-match-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.wiz-match {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.wiz-match.matched {
+  border-left-color: var(--success);
+}
+.wiz-match.pending {
+  border-left-color: var(--warning);
+}
+.wiz-match.unbound {
+  border-left-color: var(--danger);
+}
+
+/* 用户选择"忽略（转纯文本）"的占位符：降级为中性色，不再报警 */
+.wiz-match.ignored {
+  border-left-color: var(--line-strong);
+  opacity: 0.75;
+}
+
+.wiz-match-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.wiz-match-ph {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  padding: 1px 6px;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.wiz-match-ph.matched {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.wiz-match-ph.pending {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.wiz-match-ph.unbound {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* ---------------- 勾选记录 ---------------- */
+
+.wiz .wiz-pick {
+  /*
+   * 列表高度（2026-09-19 用户要求"把勾选结果和筛选结果的列表拉长一些"）。
+   *
+   * 原来写死 320px（宽屏 420px）⇒ 一屏只看得到三四条，而下面的空白一直空着。
+   * 改成跟着**视口高度**走：面板多高就用多高，但给一个下限（矮窗口里不能只剩一条）
+   * 与上限（高窗口里别把"下一步"顶到看不见）。
+   * ⚠️ 用 vh 而不是 flex:1，是因为本页的内容区是**整页滚动**（`.wiz-foot` 是 sticky），
+   * 没有"剩余高度"这个概念可继承；vh 是这里唯一稳的写法（iframe 里的 vh = 插件面板高度）。
+   */
+  max-height: clamp(260px, 56vh, 760px);
+  gap: 1px;
+}
+
+/* 列：行号 · 勾选框 · 两行字段 · 打印序号 */
+.wiz .wiz-pick-row {
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+  padding: 5px var(--sp-2);
+}
+
+/* 行号：与第一行文字对齐，不参与垂直居中（两行文本会把居中拉歪） */
+.wiz .wiz-pick-no {
+  align-self: start;
+  min-width: 13px;
+  margin-top: 1px;
+  font-size: 10px;
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/*
+ * 记录行：**两行 × 三字段**（2026-09-19 用户要求）。
+ *
+ * 用户原话："当前每条记录卡片占用的宽度太宽了，改为每个卡片只显示两行，
+ * 一行显示三个字段，就当前的视图来看，甚至都只能显示3条记录。"
+ *
+ * 原来是**一列六行**（每个字段独占一行）⇒ 单条记录约 105px 高，一屏三条。
+ * 改成三列两行后单条约 45px，同样高度能看七八条。
+ * 字段数与 `DETAIL_SLOT_COUNT = 6` 对齐 ⇒ 正好铺满 3×2，不会出现半行。
+ *
+ * ⚠️ 单元格一律 `minmax(0, 1fr)`：不写 `0` 的话，长内容（比如 13 位产品编码）
+ * 会把那一列撑宽、把别的列挤扁，三列就再也对不齐了。
+ */
+.wiz .wiz-pick-text {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: var(--sp-3);
+  row-gap: 1px;
+  min-width: 0;
+}
+
+/*
+ * 六个字段**一律同字号同色**：三列网格里给某一个单元格加大字号会立刻显得不齐，
+ * 而"哪个字段更重要"这件事本来就因表而异 —— 让位次说话，别自作聪明。
+ * （原来是"主行 = 第 1 个字段（12px 深色）+ 副行 = 其余（11px 灰）"，那只适配单列布局。）
+ */
+.wiz .wiz-pick-main,
+.wiz .wiz-pick-sub {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 分组的说明行（已勾选 / 未勾选）——只是一句话，不做成花哨的标题 */
+.wiz .wiz-pick-group {
+  margin: 0;
+  padding: var(--sp-2) 0 2px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.wiz .wiz-pick-row input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+}
+
+/* 这张表一个字段都没有时的兜底文案：中性小字，不用"—"装作有内容 */
+.wiz .wiz-pick-empty {
+  font-size: var(--fs-xs);
+  color: var(--text-4);
+}
+
+/* ---------------- 勾选区的工具条 ----------------
+   以前三个按钮和标题挤在同一行，窄侧栏（约 380px）下会换行成一团。
+   现在标题行只放标题 + 计数 + 清空，读取与批量勾选各占一行。 */
+
+.wiz .wiz-picker .app-section-head {
+  align-items: center;
+}
+
+.wiz-pick-tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-bottom: var(--sp-2);
+  margin-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--line-faint);
+}
+
+.wiz-tool-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.wiz-tool-field,
+.wiz-tool-unit {
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* 行数输入只占一小格，且不随 flex 拉伸 —— 它是"填个数"的框，不是搜索框 */
+.wiz .wiz-num {
+  flex: none;
+  width: 72px;
+}
+
+.wiz-pick-tools .wiz-hint {
+  margin: 0;
+}
+
+.wiz-pick-order {
+  flex: none;
+  min-width: 18px;
+  padding: 0 4px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-size: 10px;
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  line-height: 16px;
+}
+
+/* ============================================================
+   骨架选择器（含纯 CSS 版式缩略图）
+   ============================================================ */
+
+/*
+ * 按类型分组（2026-09-19）。
+ *
+ * 原来这里是"一个类型切换段 + 按类型过滤的列表"，现在换成"全部列出 + 分组标题"：
+ * 类型由**所选骨架**决定，所以不需要开关（那个开关的删除与恢复绕了两圈，
+ * 见 SkeletonPicker.tsx 文件头）。分组标题同时承担了"说明两类是什么"的职责。
+ *
+ * `margin-top` 挂在分组上而不是列表上：分组之间要留出明显的呼吸，组内要紧。
+ */
+.sk-group + .sk-group {
+  margin-top: var(--sp-5);
+}
+
+.sk-group-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: calc(var(--sp-2) * -1);
+}
+
+.sk-group-note {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.sk-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+@media (min-width: 560px) {
+  .sk-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.sk-item {
+  appearance: none;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--sp-3);
+  align-items: center;
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+
+.sk-item:hover {
+  background: var(--surface-hover);
+}
+
+.sk-item.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.sk-item-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+  min-width: 0;
+}
+
+.sk-item-name {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sk-item-desc {
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+
+.sk-item-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.sk-item.on .sk-item-mark {
+  border-color: var(--accent);
+}
+
+.sk-item.on .sk-item-mark::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* 缩略图：一页纸的极简示意。纸永远是白的（模拟真实打印），所以线用 --paper-* 不用 --text-* */
+.sk-thumb {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 3px;
+  width: 38px;
+  height: 48px;
+  padding: 5px 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--paper);
+  overflow: hidden;
+}
+
+.sk-thumb-title {
+  flex: none;
+  width: 70%;
+  height: 4px;
+  margin: 0 auto;
+  border-radius: 1px;
+  background: var(--paper-ink);
+  opacity: 0.72;
+}
+
+.sk-thumb-meta {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 2px;
+}
+
+.sk-thumb-meta i {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--paper-line);
+}
+
+.sk-thumb-meta i:nth-child(even) {
+  width: 62%;
+}
+
+.sk-thumb-table {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  border: 1px solid var(--paper-line);
+}
+
+.sk-thumb-th {
+  flex: none;
+  height: 3px;
+  background: var(--paper-ink);
+  opacity: 0.35;
+}
+
+.sk-thumb-tr {
+  flex: 1 1 0;
+  min-height: 3px;
+  position: relative;
+  border-top: 1px solid var(--paper-line);
+}
+
+.sk-thumb-tr.check::after {
+  content: '';
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  width: 3px;
+  height: 3px;
+  margin-top: -1.5px;
+  background: var(--paper-line);
+}
+
+.sk-thumb-lines {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 3px;
+  min-height: 0;
+}
+
+.sk-thumb-lines i {
+  height: 2px;
+  width: 72%;
+  border-radius: 1px;
+  background: var(--paper-line);
+}
+
+.sk-thumb-lines i.long {
+  width: 100%;
+}
+
+.sk-thumb-sign {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  margin-top: auto;
+}
+
+.sk-thumb-sign i {
+  flex: 1 1 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--paper-line);
+}
+
+.sk-thumb-blank {
+  flex: 1 1 auto;
+  border: 1px dashed var(--paper-line);
+  border-radius: 2px;
+}
+
+.sk-tag {
+  display: inline-block;
+  margin-left: var(--sp-2);
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+}
+
+.sk-tag.ok {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.sk-tag.warn {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+/* ============================================================
+   宽屏（独立窗口）：内容收成一列可读宽度，别让表单和按钮横穿整个窗口
+   ============================================================ */
+
+@media (min-width: 820px) {
+  .wiz .wiz-block {
+    width: 100%;
+    max-width: 784px;
+    margin: 0 auto;
+  }
+
+  /* 步骤条也跟着内容收窄，否则选中态会变成一大块色块 */
+  .wiz-steps-list {
+    max-width: 784px;
+    margin: 0 auto;
+  }
+
+  .wiz-rail {
+    max-width: 784px;
+    margin: var(--sp-2) auto 0;
+  }
+
+  /* 底部主按钮别拉成 1000px 宽 */
+  .wiz .wiz-foot .app-btn.primary {
+    flex: 0 1 360px;
+  }
+
+  .wiz .wiz-foot {
+    justify-content: center;
+  }
+
+  .wiz .wiz-foot-note {
+    margin-left: var(--sp-3);
+  }
+
+  .wiz .wiz-pick {
+    /* 宽屏（独立窗口/大面板）再多给一点：那里一行能看的字段更多，值得多铺几条 */
+    max-height: clamp(320px, 64vh, 900px);
+  }
+}
+
+/* ============================================================
+   数据自检面板（DataSanity）
+   字段行改成"色条 + 名称/类型 + 取值"的固定轨道，取值不再换行错位。
+   ============================================================ */
+
+.san-rows {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  min-width: 0;
+}
+
+.san-row {
+  display: grid;
+  grid-template-columns: 3px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'tint name type'
+    'tint value value';
+  align-items: center;
+  gap: 0 var(--sp-3);
+  padding: 4px var(--sp-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  min-width: 0;
+}
+
+.san-row:hover {
+  background: var(--surface-hover);
+}
+
+.san-tint {
+  grid-area: tint;
+  align-self: stretch;
+  width: 3px;
+  min-height: 14px;
+  border-radius: var(--r-pill);
+}
+
+.san-name {
+  grid-area: name;
+  min-width: 0;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.san-type {
+  grid-area: type;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.san-value {
+  grid-area: value;
+  min-width: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 宽屏（独立窗口）：取值并到同一行，一行一个字段 */
+@media (min-width: 560px) {
+  .san-row {
+    grid-template-columns: 3px minmax(0, 1fr) auto minmax(0, 1.1fr);
+    grid-template-areas: 'tint name type value';
+  }
+}
+
+/* ============================================================
+   标题栏的开发者入口（App.tsx 的 DeveloperMenu）
+   ============================================================
+   「数据自检」「探针」收进这里，用户第一屏只剩打印向导。
+   样式放在本文件的原因：App 侧没有独立的样式表，而 wizard.css 是随 App 一起加载的。 */
+
+.app-bar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.app-dev-wrap {
+  position: relative;
+  display: flex;
+}
+
+.app-dev {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.app-dev:hover {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+/* 正停留在自检 / 探针页时给个明确的"你在开发者页面"的信号 */
+.app-dev.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.app-dev-chev {
+  font-size: 9px;
+  color: var(--text-3);
+  transition: transform var(--t-fast);
+}
+
+.app-dev-chev.on {
+  transform: rotate(180deg);
+}
+
+.app-dev-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: var(--z-popover);
+  display: grid;
+  grid-template-columns: 1fr;
+  min-width: 132px;
+  padding: var(--sp-1);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ⚠️ 必须显式写这一条：上面给了 display:grid，作者样式会盖掉 [hidden] 自带的 display:none */
+.app-dev-menu[hidden] {
+  display: none;
+}
+
+.app-dev-menu button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  color: var(--text-1);
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.app-dev-menu button:hover {
+  background: var(--surface-hover);
+}
+
+.app-dev-menu button.on {
+  color: var(--accent);
+  font-weight: var(--fw-medium);
+}
+
+/* ============================================================
+   模板卡片（2026-09-19 重构）
+   ------------------------------------------------------------
+   用户要求：① 类型文字放大、贴右上角斜向显示；② 整体卡片用不同渐变区分类型；
+            ③ 删「选中」；④「在新窗口编辑」改名「编辑」收进「…」；
+            ⑤ 整卡可点；⑥「…」点空白自动收起。
+   前两条在这里；③④⑤⑥在 Wizard.tsx 的 TemplateCard 里。
+   ============================================================ */
+
+/* 整卡可点 ⇒ 给出手型光标，并给角标定位做参照 */
+.wiz-tpl {
+  position: relative;
+  cursor: pointer;
+}
+
+/*
+ * ⛔ `.wiz-tpl-corner-clip` / `.wiz-tpl-corner`（斜向类型角标）**已整块删除**（2026-09-19）。
+ *
+ * 它当年是为了"整宽卡片"设计的（用户原话："文字放大，贴到卡片右上角斜向显示"）。
+ * 改成**一排两个**之后每张只剩 167px，探针实测那个 73×73 的旋转方块：
+ *   · 盖住右上角一大片，并**压掉模板名**（长名那条的"含抽检结果"被盖住）；
+ *   · 12.8px 的旋转字在 6px 内边距里读不清 —— 正是用户说的"角标看不清"。
+ * 两个要求（斜向大角标 / 一排两个省空间）**物理上不共存**，
+ * 新的（省空间）优先 ⇒ 类型改由随文字排布的 `.wiz-kind` 胶囊承担。
+ *
+ * ⚠️ 顺带记一笔当年踩过的坑：`overflow: hidden` 曾经挂在 `.wiz-tpl` 上，
+ * 把「…」下拉菜单一起裁掉，菜单看着像"点了没反应"。
+ * 现在这里已经没有任何裁剪层，那条坑不会再犯；**将来若要再裁剪，别挂到 `.wiz-tpl` 上**。
+ */
+
+/* 卡片主体现在是个 div（不是 button）—— 补齐按钮时代由 UA 样式提供的行为 */
+.wiz-tpl-main {
+  width: 100%;
+  cursor: pointer;
+}
+
+/*
+ * 卡片底色：**一律白卡**（2026-09-19 用户反馈"色调有点不协调"后改）。
+ *
+ * 原方案给两种类型各铺了一层 10%→2% 的渐变（暖砂 / 冷青）。在**整宽**卡片上还行，
+ * 缩到 167px 两列之后问题全出来了：
+ *   · 10% 的底色本身几乎看不出"是什么颜色"，只留下一点**浑**；
+ *   · 它还要和胶囊底色、选中态叠在一起 ⇒ 三种浅色互相污染，就是用户说的"不协调"。
+ * ⇒ 底色交还给白卡（本来就该"白卡 + 1px 边框"），种类信息由**胶囊**独家承担：
+ *   底是 10% 的淡色、字是压暗过的 `--kind-*-ink`，在白底上干净且读得清。
+ *   信息没丢，颜色变干净 —— 这是本项目一贯的口径：**要区分就明确区分，不要糊一层**。
+ */
+.wiz-tpl.is-record,
+.wiz-tpl.is-view {
+  background: var(--surface);
+}
+/*
+ * 选中态：改用**全局蓝色 accent**，与勾选列表、骨架面板的选中语言保持一致。
+ * 原来用"种类色的描边" ⇒ 选中的卡片同时出现蓝 radio + 暖砂描边 + 暖砂底，
+ * 三种信号各说各话。现在只有一条语言：**蓝 = 你选中的**。
+ */
+.wiz-tpl.is-record.on,
+.wiz-tpl.is-view.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/*
+ * 卡片里的**类型胶囊**（取代斜向角标，2026-09-19）。
+ *
+ * 三个约束决定它长这样：
+ *   ① 必须**有字**（"记录"/"视图"）—— 用户抱怨的"看不清"就是只有色块没有可读的字；
+ *      项目口径也是"不能只靠颜色表意"，所以字是第一位的，颜色只是第二信号。
+ *   ② 底色用 `--kind-*-from`（10% 淡色）+ **压在白卡上**：干净。
+ *      （卡片底色已经改回白卡，见上面 `.wiz-tpl.is-record` 那段注释。）
+ *   ③ 文字用 `--kind-*-ink`（同色相压暗的不透明色，见 tokens.css）而不是 `--warning`/`--accent`：
+ *      `--warning` 是 #ff8800，11px 小字用它对比度只有 ~2.6:1，读不清；
+ *      ink 版在白底和淡底上都有 6:1 以上。
+ *
+ * ⚠️ 它排在 meta 行首（纸张前面），且是**行内**元素：
+ * 名字那一行因此能独占整宽，167px 卡片上长名字从 3 行降到 2 行。
+ */
+.wiz-tpl .wiz-kind {
+  display: inline-block;
+  flex: none;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.wiz-tpl .wiz-kind.record {
+  background: var(--kind-record-from);
+  color: var(--kind-record-ink);
+}
+.wiz-tpl .wiz-kind.view {
+  background: var(--kind-view-from);
+  color: var(--kind-view-ink);
+}
+
+/*
+ * 圆点与卡片首行**顶对齐**，不再整体居中。
+ *
+ * 卡片正文现在是"名字 / 类型+纸张 / 时间"三行，居中会让圆点漂到第二行（真机截图已见到）——
+ * 同一个控件在不同卡片上落在不同高度，"两件不一样的事长成一个样子"。
+ */
+.wiz-tpl-main {
+  align-items: start;
+}
+.wiz-tpl-mark {
+  margin-top: 2px;
+}
+
+/* 菜单：点空白即收起（逻辑在 JS，这里只保证它盖在卡片内容之上） */
+.wiz-tpl-menu {
+  z-index: 2;
+}
+
+/*
+ * 菜单**朝上开**（2026-09-19）。
+ *
+ * 默认朝下（`top: calc(100% - 4px)`），但插件面板很矮 —— 卡片靠底时菜单会溢出面板被裁掉。
+ * JS 量到"下方放不下"就挂 `is-up`，这里把锚点从下沿翻到上沿。
+ */
+.wiz-tpl-menu.is-up {
+  top: auto;
+  bottom: calc(100% - 4px);
+}
+
+/* ============================================================
+   模板卡片：一排两个 + 更紧凑（2026-09-19 用户要求）
+   ------------------------------------------------------------
+   用户原话："优化一下图上的模板卡片样式即可，**当前占用空间太大**，
+   或许可以优化成**一排显示两个**的方式。"
+
+   实测（`_probe-card-layout.mjs`，mock 的 `?tpl=6`，390×900 侧边栏视口）：
+     · `.wiz-tpl-list` 宽 340 ⇒ 两列各 167px、列间距 6px；
+     · 卡片高 69~85px（85 是名字两行那条），6 张占 3 行共 ≈ 255px；
+       单列时代是 6 行 ≈ 450px —— 垂直占用砍掉约一半。
+   ============================================================ */
+
+/*
+ * 一排两个。
+ * 飞书侧边栏只有 ~400px，两列后每张 167px —— 够放"名称 / 类型+纸张 / 时间"三行。
+ *
+ * ⚠️ 刻意**不设 `@media` 断点**：面板再宽也是两列（宽了每张更宽而已）。
+ * 三列在 400px 下每张只剩 ~110px，名字会碎成三行，反而更高。
+ */
+.wiz-tpl-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/*
+ * 卡片本体：收紧内边距；`align-items: start` 让两列各自按内容高，不被拉平。
+ */
+.wiz-tpl {
+  padding: var(--sp-2);
+  align-items: start;
+  gap: 4px;
+  min-height: 0;
+}
+
+/*
+ * 「…」按钮**绝对定位到右下角**，不再占一整行。
+ *
+ * 原来 `.wiz-tpl` 是单列 grid，主体与操作区上下排 ⇒ 卡片天然高二三十像素。
+ * 挪成绝对定位后，卡片高度只由正文三行决定（实测右距/下距各 5px，都在卡内）。
+ */
+.wiz-tpl-actions {
+  position: absolute;
+  right: var(--sp-1);
+  bottom: var(--sp-1);
+}
+
+.wiz-tpl-actions .app-btn.sm {
+  padding: 0 6px;
+  min-height: 22px;
+  line-height: 1;
+}
+
+/* 左下角的"最后编辑时间"（用户要求精确到秒）。右侧留出「…」的位置，避免压住 */
+.wiz-tpl-time {
+  display: block;
+  margin-top: 2px;
+  padding-right: 30px;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 两列时模板名允许换行。
+ * 原来 `nowrap + ellipsis` 在 180px 里会把名字截掉一半 —— 那比换行更让人认不出是哪张。
+ */
+.wiz-tpl-name {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-all;
+  line-height: 1.3;
+}
+
+
+/* ============================================================
+   骨架面板顶部的类型标签页（2026-09-20 用户要求）
+   ============================================================
+
+   原来两类骨架**纵向铺开**（记录 7 个 + 视图 3 个），用户要往下滑很久才能看完；
+   而两类的差别其实只有一处。改成顶部两个标签页，一屏就能选完。
+   标签下面那行说明**不能省** —— 它是"记录/视图"唯一的差别所在。
+*/
+.sk-tabs {
+  display: flex;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.sk-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  cursor: pointer;
+  /* 未选中压一档、选中浮起来 —— 靠层级而不是堆装饰 */
+  color: var(--text-2);
+}
+
+.sk-tab:hover {
+  background: var(--surface-hover);
+}
+
+.sk-tab.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-1);
+}
+
+.sk-tab-count {
+  flex: none;
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: var(--r-pill);
+  background: var(--bg-page);
+  color: var(--text-3);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.sk-tab-note {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/* ============================================================
+   UI 重设计（2026-09-21）—— 向导三步
+   ------------------------------------------------------------
+   依据用户给的《排版打印插件 · UI 重设计稿》实现。放在文件末尾，
+   靠**源码顺序**覆盖前面几层同名选择器（本文件历次迭代攒了 3 层卡片样式，
+   详见下面逐段的说明）。**只收敛样式，不动功能与 DOM 语义**。
+
+   ⚠️ 两处**刻意偏离设计稿**的地方（都写在各自规则上方）：
+     ① 模板卡的「对勾徽标」与「・・・菜单」并排而不是叠在同一格 —— 参考稿里对勾会
+        盖住菜单，而选中是最常见状态 ⇒ 菜单会点不到，那是**功能损失**；
+     ② 骨架面板的底栏做成 sticky（设计稿的骨架面板底部也是常驻的，这里是把实现补上）。
+   ============================================================ */
+
+/* ---------------- 步骤条：完成态打勾 + 连接线 ---------------- */
+
+/*
+ * 设计稿：**圆点在上、文字在下**（居中），完成态绿色对勾、当前态蓝色高亮、
+ * 未到灰色，且**连接线在已走过的段变绿**。
+ *
+ * 原来的实现是"圆点与文字同一行 + 一条全局进度条（`.wiz-rail`）"，
+ * 与设计稿的"逐段连接线"不同 ⇒ 这里逐段画在 `li::before` 上，并把旧的 `.wiz-rail` 隐藏。
+ *
+ * ⚠️ 本段**全部选择器都带 `.wiz-steps` / `.wiz` 前缀**，不是啰嗦：
+ *    文件前面那几层写的是 `.wiz-steps .wiz-step-dot`（0,2,0）、`nav.wiz-steps`（0,1,1）、
+ *    `.wiz-steps .wiz-step.done .wiz-step-dot`（0,4,0）。只写 `.wiz-step-dot`（0,1,0）
+ *    或 `.wiz-step.done .wiz-step-dot`（0,3,0）会被**旧规则盖掉**，
+ *    表现就是"改了样式没反应"。这里把自己的优先级抬到与旧规则同级、再靠源码顺序取胜。
+ *
+ * ⚠️ `.wiz-steps-list > li` 上的 `done/active/todo` 类由 `StepNav` 挂（TSX 里那段注释说明了
+ *    为什么不用 `:has()`）——`li.done` ⇒ **它左边那一段**变绿，正好等于"走到过这里"。
+ */
+.wiz .wiz-steps {
+  padding: var(--sp-4) var(--sp-4) var(--sp-2);
+  border-bottom: 1px solid var(--line-faint);
+}
+
+.wiz-steps-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+}
+
+.wiz-steps-list > li {
+  position: relative;
+  min-width: 0;
+}
+
+/* 连接线：从本格中心左侧 14px 起，跨到下一格中心左侧 14px，共 2px 高（与圆点同高） */
+.wiz-steps-list > li::before {
+  content: '';
+  position: absolute;
+  top: 9px;
+  left: calc(-50% + 14px);
+  width: calc(100% - 28px);
+  height: 2px;
+  background: var(--step-line);
+}
+
+.wiz-steps-list > li:first-child::before {
+  display: none;
+}
+
+/* 已经走过的段（当前格是 done）用绿色，与对勾同色 */
+.wiz-steps-list > li.done::before {
+  background: var(--step-line-done);
+}
+
+.wiz-rail {
+  display: none;
+}
+
+/*
+ * 圆点与文字**竖排**（设计稿），并且整格居中。
+ * ⚠️ 旧的 `.wiz-steps .wiz-step` 是 `display:flex; align-items:center`（横向一行）⇒
+ *    这里必须整条重写，只加 `flex-direction` 是不够的（还有 gap 与 padding）。
+ */
+.wiz-steps .wiz-step {
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 5px;
+  padding: 0 2px 2px;
+}
+
+/* 当前步不再铺一整块底色（设计稿里当前态只体现在圆点与文字上） */
+.wiz-steps .wiz-step.active {
+  background: transparent;
+}
+
+.wiz-steps .wiz-step-dot {
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+  font-weight: var(--fw-semibold);
+}
+
+/* 完成态：**实心绿底 + 白对勾**（原来是浅绿底 + 绿字，弱到看不出"已完成"） */
+.wiz-steps .wiz-step.done .wiz-step-dot {
+  background: var(--success);
+  color: #fff;
+}
+
+.wiz-steps .wiz-step.done .wiz-step-label {
+  color: var(--text-2);
+  font-weight: var(--fw-regular);
+}
+
+.wiz-steps .wiz-step.active .wiz-step-label {
+  font-weight: var(--fw-semibold);
+}
+
+/* ---------------- 统计卡（范围内记录 / 预计产出） ---------------- */
+
+/*
+ * 设计稿是两张**浅灰底、无描边**的卡：小标签在上（11px 灰）、数值在下（18px 半粗）。
+ * 原来的 `.wiz-fact` 是"白底 + 1px 边"的行内布局（`is-compact` 还把它压成一行）。
+ * ⇒ 这里统一成卡式；`is-compact` 那两条规则留在文件里但**已经没人用了**
+ *   （TSX 里那个类已去掉）——不删是因为它们记录着"曾经压成窄条"这段历史，
+ *   而重新启用它只需要在 TSX 加一个类名。
+ */
+.wiz-facts {
+  gap: var(--sp-3);
+}
+
+.wiz-fact {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px var(--sp-4);
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--stat-bg);
+}
+
+.wiz-fact-k {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.wiz-fact-v {
+  font-size: 18px;
+  font-weight: var(--fw-semibold);
+  color: var(--text-1);
+  line-height: 1.25;
+}
+
+/*
+ * 文字型取值（"一份多页文档"）跟数字一样大就会折行、把卡片撑高，
+ * ⇒ 压到 13px，并**放开 `nowrap`**：旧规则带着 `white-space:nowrap + ellipsis`，
+ *    而 13px 的那句短语在 140px 里必须能换行，否则会变成"一份多页文…"。
+ */
+.wiz-fact-v.is-text {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  line-height: 22px;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* ---------------- 筛选结果 / 勾选列表：记录卡片 ---------------- */
+
+/*
+ * 设计稿：**每条记录一张卡**（白底、1px 灰边、圆角 10），卡内 3 列网格、最多 6 个字段（两排）。
+ *
+ * ⚠️ 本段**全部选择器都带 `.wiz ` 前缀**：文件前面那层写的是 `.wiz .wiz-pick-row`
+ *    （0,2,0）/ `.wiz .wiz-pick-text`（0,2,0）。只写 `.wiz-pick-row`（0,1,0）会被盖掉 ——
+ *    尤其是 `.wiz .wiz-pick-row` 里那条 `grid-template-columns: auto auto minmax(0,1fr) auto`
+ *    （复选框时代的四列），漏掉就会变成"卡里多出两列空白"。
+ *
+ * ⚠️ 类名沿用 `.wiz-pick*`（**不新起一套**）：
+ *      · e2e ⑤d 就是靠 `.wiz-pick-text` 的 `grid-template-columns` 断"一行三个字段"的，
+ *        改名等于把那条守卫删掉；
+ *      · 同一套样式还被「手动勾选」列表复用 —— 两处长得一样才叫"两处在说同一件事"。
+ *
+ * ⚠️ `.wiz-pick-main` / `.wiz-pick-sub`（"首格加重 + 其余灰"的旧方案）**已无人使用**：
+ *    UI 重设计把每个字段升级成"字段名 + 取值"的单元格，比"给某几个值换颜色"信息量大得多。
+ *    旧规则留在文件里（不删），只是 DOM 里已经不存在这两个类。
+ */
+.wiz .wiz-pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  /*
+   * ⚠️ 取消**内嵌滚动**（原来是 `max-height: clamp(260px, 56vh, 760px)` + `overflow`
+   *    内滚，为的是"一屏能看七八条"）。
+   *    用户这次点名的第一条是"**内容区滚动、主按钮永远钉在面板底部**" ——
+   *    一个内嵌滚动区会在面板里再套一层滚动（滚到底还得再滚外层），
+   *    而卡片化之后每条记录本来就更高、信息更全，"一屏塞 8 条"这个目标已经不适用。
+   *    ⇒ 改成**整页滚动**：`.app-body` 是滚动容器，`.wiz-foot` 是 sticky，两者配合即可。
+   */
+  max-height: none;
+  overflow: visible;
+}
+
+.wiz .wiz-pick-row {
+  /* 行号 + 文本网格（原来还有复选框与打印序号两列，那是已经删掉的交互时代留下的） */
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  padding: 10px var(--sp-4);
+}
+
+.wiz .wiz-pick-text {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* 单元格：字段名（10px 灰）在上、取值（12px 正文）在下 */
+.wiz-pick-cell {
+  display: block;
+  min-width: 0;
+}
+
+.wiz-pick-k {
+  display: block;
+  font-size: 10px;
+  /*
+   * ⚠️ 行高要**显式收窄**：`.wiz-pick-k` 会从 body 继承 `--lh-base: 1.55`（= 15.5px），
+   *    两行字段的卡片因此会比设计稿高约 6px，一屏少看一条。
+   *    设计稿那一页没有设行高（用的是浏览器默认 ~1.2），这里取 1.3 与 `.wiz-pick-v` 对齐。
+   */
+  line-height: 1.3;
+  color: var(--text-3);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wiz-pick-v {
+  display: block;
+  font-size: var(--fs-sm);
+  color: var(--text-1);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 首个字段给点重量，便于横向扫读（原来是"第一个值深色、其余灰"，卡片化之后
+ * 值一律深色、字段名一律灰 —— 再按位置换色会显得不齐。留这一档粗体做视觉锚点）。
+ */
+.wiz-pick-row .wiz-pick-cell:first-child .wiz-pick-v {
+  font-weight: var(--fw-semibold);
+}
+
+.wiz-pick-row:hover {
+  border-color: var(--line-strong);
+}
+
+/* ---------------- 选模板页的标题行：灰胶囊 + 「导入 / 导出」下拉 ---------------- */
+
+/*
+ * 设计稿：`当前xxx的模板` … 右侧 = 灰胶囊（数量）+ 次级按钮（下拉）。
+ *
+ * ⚠️ 下拉的键盘/点空白收起逻辑在 TSX（`StepTemplate` 的 `ioOpen`），这里只负责样子。
+ *    菜单**必须不透明 + 足够 z-index**：它左边就是模板卡片，半透明会与卡片文字叠在一起
+ *    （这个项目在模板卡的「…」菜单上已经栽过一次，那是"看着像点了没反应"）。
+ */
+.wiz-tpl-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+}
+
+/* 灰底胶囊：只放数字，弱化到 --text-2（设计稿 `.pill`） */
+.wiz-pill {
+  padding: 1px 6px;
+  border-radius: var(--r-sm);
+  background: var(--chip-bg);
+  color: var(--chip-ink);
+  font-size: var(--fs-xs);
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wiz-io {
+  position: relative;
+}
+
+.wiz-io-chev {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 9px;
+  line-height: 1;
+  transition: transform var(--t-fast);
+}
+
+.wiz-io-chev.on {
+  transform: rotate(180deg);
+}
+
+.wiz-io-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: var(--z-popover);
+  display: grid;
+  grid-template-columns: 1fr;
+  min-width: 150px;
+  padding: var(--sp-1);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.wiz-io-menu button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  color: var(--text-1);
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.wiz-io-menu button:hover {
+  background: var(--surface-hover);
+}
+
+/*
+ * ⚠️ 必须显式写这一条：上面给了 `display: grid`，作者样式会盖掉 `[hidden]` 自带的 `display:none`
+ *    ⇒ 收起菜单时它**照样显示**（浮在卡片上）。与 `.app-dev-menu[hidden]` 是同一个坑，
+ *    那边踩过一次，这里直接按同一个写法补上。
+ */
+.wiz-io-menu[hidden] {
+  display: none;
+}
+
+/* ---------------- 模板卡片：两列网格 + 类型配色 + 水印 ---------------- */
+
+/*
+ * 设计稿给的都是**确定值**，这里照抄（gap 10 / 行高 min 76 / 内边距 10×12）：
+ * 卡片不再做高，两列等高，一屏能看更多。
+ */
+.wiz-tpl-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  grid-auto-rows: minmax(76px, auto);
+}
+
+.wiz-tpl {
+  position: relative;
+  /*
+   * ⚠️⚠️ **故意不写 `overflow: hidden`** —— 虽然水印（下面 `.wiz-tpl .wiz-kind`）看起来需要它。
+   *
+   * 设计稿的卡片是 `overflow: hidden`，但那是因为它的「・・・」菜单在卡片内；
+   * 而**本项目的菜单必须溢出卡片**（`.wiz-tpl-menu` 是 `top: calc(100% - 4px)`，
+   * 一个 150×178 的浮层，比卡片本身还高）。加了裁剪层的实测后果
+   * （`_ui-shot.mjs` 的 `card-menu` 探针，2026-09-21）：
+   *   `{"cardOverflow":"hidden","menuRect":{"w":150,"h":178},"overflowPx":173,"clipped":true}`
+   * —— 菜单**整块看不见**，卡片上的 编辑 / 重命名 / 另存为副本 / 导出 / 复制 / 删除 **全部点不到**，
+   * 而截图上看只是"点了没反应"（这个坑本文件前面 1921 行附近就写过一次警告，我又踩了一遍）。
+   *
+   * 那不裁剪水印会不会跑出去？不会：水印是 `right:4px; bottom:2px` 的 34px 两字（"记录"/"视图"），
+   * 需要约 74×36px 的空间，而卡片最小 76px 高、两列时约 145px 宽 ⇒ 天然装得下。
+   * （实测读数见下一条规则。）
+   */
+  display: block;
+  min-height: 76px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  gap: 0;
+}
+
+/*
+ * 卡片内部的三个盒子要"化平"：设计稿的卡片是一列文字，没有任何装饰性元素。
+ *   · `.wiz-tpl-main` 旧样式是 `display:grid; grid-template-columns:auto 1fr`（给单选圆点留列），
+ *     圆点已删 ⇒ 不化平的话左边会留 14px 空列 + 一个 gap，整卡文字向右缩进；
+ *   · `.wiz-tpl-body` 旧样式是 `grid`（1 列 + 1px 间距），与 `.wiz-tpl-name` 的
+ *     `margin-bottom: 8px` 叠起来会变成 9px ⇒ 化平后间距完全由 margin 决定；
+ *   · `.wiz-tpl-mark`（选中圆点）**只隐藏、不删 DOM**：它是"卡片可点选"这段历史的产物，
+ *     真删掉万一要回退就得改 TSX。
+ */
+.wiz-tpl-main {
+  display: block;
+}
+
+.wiz-tpl-body {
+  display: block;
+}
+
+.wiz-tpl-mark {
+  display: none;
+}
+
+/* 按类型配色：记录=浅蓝、视图=浅绿（一眼区分，不靠文字） */
+.wiz-tpl.is-record {
+  background: var(--tpl-record-bg);
+  border-color: var(--tpl-record-line);
+}
+
+.wiz-tpl.is-view {
+  background: var(--tpl-view-bg);
+  border-color: var(--tpl-view-line);
+}
+
+/*
+ * 悬停：旧规则是 `.wiz-tpl:hover { background: var(--surface-hover) }`（把卡底刷成灰）。
+ * 卡片现在**按类型有底色**，再刷灰就等于"一悬停类型色就没了"；而且它与上面
+ * `.wiz-tpl.is-record` 同优先级（0,2,0）—— 上面那条写在后面，hover 底色本来就已经失效。
+ * ⇒ 悬停反馈改成**加深描边**（不覆盖类型的底与边，只在未选中时提示"这里可点"）。
+ * ⚠️ 必须写在 `.wiz-tpl.on` **之前**：否则"选中 + 悬停"会被它压掉蓝边。
+ */
+.wiz-tpl.is-record:hover,
+.wiz-tpl.is-view:hover {
+  border-color: var(--line-strong);
+}
+
+/* 选中态：描边转蓝 + 3px 光环（**覆盖**类型边色，所以放最后） */
+.wiz-tpl.on {
+  border-color: var(--accent);
+  box-shadow: var(--ring-accent);
+}
+
+.wiz-tpl.on:hover {
+  border-color: var(--accent);
+}
+
+/*
+ * ⚠️ 选中时**保留类型的底色**。
+ *    旧规则 `.wiz-tpl.is-record.on`（0,3,0，在文件前面）把选中卡的底色刷成 `--accent-soft`，
+ *    比本段的 `.wiz-tpl.on`（0,1,0）优先级更高 ⇒ 不显式覆盖的话，选中之后
+ *    "记录/视图"的底色差就消失了（设计稿要求：选中只改**描边 + 光环**，类型配色不动）。
+ */
+.wiz-tpl.is-record.on {
+  background: var(--tpl-record-bg);
+}
+
+.wiz-tpl.is-view.on {
+  background: var(--tpl-view-bg);
+}
+
+/*
+ * 名称：13/600；右侧留白避开右上角的两个元素。
+ * ⚠️ 设计稿写的是 `padding-right:20px`（只为避「・・・」），但选中时右侧还有对勾徽标，
+ *    两个并排共需约 44px。留 20 会让长名字钻到徽标底下（参考稿里那个"产品验收记录表…"
+ *    就是被角标压掉过一段，这个项目已经栽过一次）⇒ 这里取 46px。
+ * ⚠️ `-webkit-line-clamp: 2`：**刻意偏离设计稿**的一处。设计稿里的模板名都很短
+ *    （"巡检记录11"/"通用清单"），而真实模板名常常是"产品验收记录表（含抽检结果与附件）"。
+ *    两列布局下每张卡只有约 150px、减去 46px 让位只剩约 104px（≈8 个汉字/行）——
+ *    只给一行的话名字会被截成"产品验收记录…"，那比换行更让人认不出是哪张。
+ *    限两行 = 既能认全、又不会让某张卡把整行撑高（`grid-auto-rows: minmax(76px,auto)` 会跟着长）。
+ */
+.wiz-tpl-name {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: 1.3;
+  margin-bottom: 8px;
+  padding-right: 46px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* 元信息一行：纸张胶囊 + 时间 */
+.wiz-tpl-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  min-width: 0;
+}
+
+.wiz-tpl-paper {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: var(--chip-bg);
+  color: var(--chip-ink);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+
+/* 时间：跟随 meta 行（覆盖旧的"独占一行 + 右侧避开菜单"） */
+.wiz-tpl-time {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * 类型水印：右下角半透明大字。
+ * ⚠️ `.wiz-kind` 原来是 meta 行里的**胶囊**（11px、有底色）。设计稿把它换成了水印 ⇒
+ *    这里必须把胶囊那套（背景 / 内边距 / 圆角）**显式复位**，否则会同时带着底色和 34px 字号。
+ *
+ * ⚠️⚠️ 复位必须写成 `.wiz-tpl .wiz-kind.record` / `.view`（0,3,0），**不能**只在
+ *    `.wiz-tpl .wiz-kind`（0,2,0）里写：文件前面有
+ *      `.wiz-tpl .wiz-kind.record { background: var(--kind-record-from); color: …-ink }`
+ *    同样是 0,3,0 —— 优先级压过本段的基础规则 ⇒ 水印会**带着一块胶囊底色**浮在卡片右下角
+ *    （真机看上去就是"右下角有个蓝方块"）。颜色分两条写：记录=蓝、视图=绿。
+ * ⚠️ 允许它压在元信息下方（设计稿原话："不用留白避让"）—— 卡片有 overflow:hidden 兜着。
+ */
+.wiz-tpl .wiz-kind {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 3px;
+  opacity: 0.16;
+  pointer-events: none;
+  user-select: none;
+}
+
+.wiz-tpl .wiz-kind.record,
+.wiz-tpl .wiz-kind.view {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.wiz-tpl.is-record .wiz-kind {
+  color: var(--tpl-record-mark);
+}
+
+.wiz-tpl.is-view .wiz-kind {
+  color: var(--tpl-view-mark);
+}
+
+/*
+ * 「・・・」菜单移到**右上角**（设计稿），并左移 22px 给对勾徽标让位。
+ *
+ * ⚠️ 这是**刻意偏离设计稿**的一处：参考稿把对勾（top:7/right:7）和「・・・」（top:8/right:8）
+ *    画在同一格上，选中时对勾会把菜单**盖住**。而"选中"恰恰是最常见的状态 ⇒
+ *    菜单就点不到了，那是**功能损失**（卡片菜单里有 编辑/重命名/复制/删除/导出）。
+ *    所以：对勾贴右（right:8），菜单让到它左边（right:30），两个都点得到。
+ */
+.wiz-tpl-actions {
+  top: 8px;
+  right: 30px;
+  bottom: auto;
+}
+
+.wiz-tpl-actions .app-btn.sm {
+  height: 20px;
+  min-height: 20px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+}
+
+.wiz-tpl-actions .app-btn.sm:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+/* 选中徽标：16px 蓝色小圆 + 白对勾（卡内右上角，因为卡片 overflow:hidden） */
+.wiz-tpl-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.wiz-tpl-check svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* 网格最后一格：虚线「＋ 新建模板」占位卡 */
+.wiz-tpl-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 76px;
+  padding: 10px 12px;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: var(--fs-md);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.wiz-tpl-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 卡片下方的弱注释 */
+.wiz-tpl-note {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+/* ---------------- 骨架面板：分段控制器 + 骨架行 + 底栏 ---------------- */
+
+/*
+ * 顶部两个标签页**做成"分段控制器"的样子**（设计稿），但类名仍是 `.sk-tabs` / `.sk-tab`。
+ * ⚠️ 不要改用 `.seg` / `.seg-item`：`.seg` 在本项目里是"改向导模式"的控件，
+ *    而 e2e 有一条守卫数的是"骨架面板正文里的 `.seg` 个数必须是 0"
+ *    （它守的是"面板不许再问一遍类型"那个死局 —— 见 SkeletonPicker.tsx 文件头的来龙去脉）。
+ *    借 `.seg` 会让那条守卫变成假红，也会让这两个语义不同的控件"长成一个样子"。
+ */
+.sk-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: var(--sp-2);
+  padding: 3px;
+  border-radius: var(--r-md);
+  background: var(--track-bg);
+}
+
+.sk-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+/* 未选中不再铺白底（旧样式是"白卡 + 1px 边"，与分段控制器的语言冲突） */
+.sk-tab:hover {
+  background: transparent;
+  color: var(--text-1);
+}
+
+.sk-tab.on {
+  border-color: transparent;
+  background: var(--surface);
+  color: var(--text-1);
+  font-weight: var(--fw-semibold);
+  box-shadow: 0 1px 3px rgba(31, 35, 41, 0.08);
+}
+
+/*
+ * 数量徽标：旧样式是个灰底小胶囊，设计稿写的是 `记录模板 · 7` 的文本。
+ * ⇒ 拆掉胶囊底，只留数字，用 `::before` 补一个间隔点。
+ * ⚠️ 间隔点必须走伪元素：e2e 会 `Number($('.sk-tab-count').textContent)` ——
+ *    真写进文本里就会变成 `Number('· 7') === NaN`，那条"两类都可达"的守卫会假红。
+ */
+.sk-tab-count {
+  flex: none;
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.sk-tab-count::before {
+  content: '·';
+  margin-right: 5px;
+  color: var(--text-3);
+}
+
+.sk-tab-note {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+/*
+ * 骨架列表：**单列**。
+ * ⚠️ 旧样式有个 `@media (min-width: 560px) { grid-template-columns: 2 }` ——
+ *    设计稿的骨架行是"缩略图 + 文字 + 单选圈"的横向条目，宽面板下排成两列会让
+ *    每条的说明被压到一两行就换行，反而更难扫。这里显式钉成单列。
+ */
+.sk-list {
+  grid-template-columns: 1fr;
+  gap: var(--sp-2);
+  margin-top: 0;
+}
+
+.sk-item {
+  gap: var(--sp-3);
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: var(--r-lg);
+}
+
+.sk-item.on {
+  border-color: var(--accent);
+  /* 选中态与模板卡片同一套语言：蓝描边 + 3px 光环（旧样式只有描边 + 淡蓝底） */
+  background: var(--surface);
+  box-shadow: var(--ring-accent);
+}
+
+/*
+ * 缩略图：设计稿 56×44（横向小样），底板浅灰 + 细边。
+ *
+ * ⚠️ 底板**必须是 `--paper`（白色），不能跟设计稿用 `--stat-bg` 那样的"浅灰底"**。
+ *    这个缩略图内部画的是"一页纸"（标题 / 说明行 / 表格 / 签字），里面的线与块全部取
+ *    `--paper-ink` / `--paper-line`（**深色**，因为纸永远是白的，见本文件上面那段的注释）。
+ *    底板一旦跟着主题变深，那些深色线在深底上就**彻底看不见**了 ——
+ *    暗色主题下实测：整块缩略图只剩一个空盒子，骨架之间完全分不出来。
+ *    所以这里只把**边框**交出去（用 `--line`，暗色下自动变成 #3a3f45），纸仍然是白的。
+ */
+.sk-thumb {
+  width: 56px;
+  height: 44px;
+  flex: 0 0 56px;
+  gap: 2px;
+  padding: 4px 5px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--paper);
+}
+
+.sk-item-name {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  margin-bottom: 3px;
+}
+
+.sk-item-desc {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+/* 单选圈：16px（设计稿），未选中 1.5px 灰边、选中蓝边 + 中心实心点 */
+.sk-item-mark {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border: 1.5px solid var(--text-4);
+}
+
+.sk-item.on .sk-item-mark {
+  border-color: var(--accent);
+}
+
+.sk-item.on .sk-item-mark::after {
+  width: 8px;
+  height: 8px;
+}
+
+/* ---------------- 骨架面板：模板名称输入 + 弱注释 ---------------- */
+
+.sk-field {
+  display: block;
+  margin-top: var(--sp-2);
+}
+
+.sk-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+/*
+ * 名称输入框：设计稿 36px 高 / 圆角 8 / 1px 灰边。
+ * ⚠️ **只加在 `.sk-name` 上，不动 `.wiz-input`**：`.wiz-input` 还被筛选条件、
+ *    每页条数等**密集表单行**复用，统一抬到 36px 会把那些行整体撑高
+ *    （窄侧栏里每一行都很贵）。设计稿点名的是这一个输入框。
+ */
+.sk-name {
+  height: 36px;
+  min-height: 36px;
+  padding: 0 var(--sp-4);
+  border-color: var(--line);
+  border-radius: var(--r-md);
+  font-size: var(--fs-md);
+}
+
+.sk-note {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+/* ---------------- 底栏：主按钮钉在面板最底部（三屏通用） ---------------- */
+
+/*
+ * 用户这次点名的第 1 条："**不管数据、骨架有多少个，主按钮永远钉在面板最底部，
+ * 内容区在它上方滚动**"。
+ *
+ * `position: sticky; bottom: 0` 是文件前面（`.wiz .wiz-foot`，0,2,0）就有的，
+ * 这里补的是**设计稿的比例**：左次要按钮固定 88px + 右主按钮 `flex: 1`。
+ * 旧规则是"两个按钮 `flex: 0/1 1 auto`" ⇒ 各占一半，320px 侧栏里主按钮不够突出。
+ *
+ * ⚠️ 选择器必须写成 `.wiz .wiz-foot .app-btn`（0,3,0），不能写 `.wiz-foot .app-btn`
+ *    （0,2,0，在 styles/app.css 里那样写过一次，被这里的旧规则盖掉 ⇒ "改了没反应"）。
+ */
+.wiz .wiz-foot {
+  gap: 10px;
+  padding: var(--sp-4);
+  border-top-color: var(--line-faint);
+  background: var(--surface);
+}
+
+.wiz .wiz-foot .app-btn {
+  flex: none;
+  width: 88px;
+}
+
+.wiz .wiz-foot .app-btn.primary {
+  flex: 1 1 auto;
+  width: auto;
+}
+
+/*
+ * 子面板（选骨架 / Word 导入）里的底栏**要贴到面板左右边缘**，并且**内容再短也要落到面板底部**。
+ *
+ * ① 贴边：那些面板的根是 `.wiz-block`（`padding: 12px`）⇒ 底栏不处理的话四周各缩进 12px，
+ *    于是"主按钮钉在底部"时，**底栏两侧那 12px 的缝里会露出正在滚动的正文**
+ *    （视觉上像底栏破了两个洞）。负外边距把盒子撑到边缘，同时抵消 `.wiz-block` 的下内边距，
+ *    `bottom: 0` 才能真正贴住面板底部。
+ *
+ * ② 落到最底：`sticky` **只在内容超出滚动区时**才把它"钉住"；内容比面板矮时，
+ *    它就停在正文下面（实测：骨架只有 7 条、面板 900px 高时，底栏离面板底部还有 128px）。
+ *    用户的要求是"**不管数据、骨架有多少个，主按钮永远钉在面板最底部**" ⇒ 内容短时也得在底部。
+ *    做法：让 `.wiz-block` 撑满 `.wiz-content` 的剩余高度（`flex: 1 1 auto`），
+ *    再让底栏 `margin-top: auto` 吃掉剩下的空白。
+ *
+ * ⚠️ 为什么用 flex 而不是 `.wiz-block { min-height: 100% }`：百分比 min-height 要对着
+ *    "有确定高度的父级"才解析，`.wiz-content` 的高度是 flex 分配出来的（无显式高度），
+ *    百分比在部分宿主里会解析成 0 ⇒ 白改。flex 分配不依赖百分比，宿主无关。
+ * ⚠️ `.wiz-content` 本来是 block（只有一个 `.wiz-block` 子元素），改成 flex 列对此无影响；
+ *    向导四步的底栏挂在 `.wiz` 上、不走这条路径，行为不变。
+ */
+.wiz-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.wiz-content > .wiz-block {
+  flex: 1 1 auto;
+}
+
+.wiz-block > .wiz-foot {
+  margin-top: auto;
+  margin-left: calc(-1 * var(--sp-4));
+  margin-right: calc(-1 * var(--sp-4));
+  margin-bottom: calc(-1 * var(--sp-4));
+}
+
+/* ============================================================
+   第二次降噪（2026-09-21）—— 步骤① 腾出记录展示空间
+   ------------------------------------------------------------
+   用户原话："有打印范围控制区域、**记录数量和文档数量展示区域**、筛选条件区域、记录展示区域，
+   **太多东西导致记录展示空间被严重挤占**，能不能优化一下。"
+
+   三件事一起做（都是**减法**）：
+     ① 筛选条件整块移除（见上面那段说明）—— 省掉一整个 section（含标题行 + 条件卡 + 添加按钮）；
+     ② 记录卡从"两行 6 字段"（91px）压到"**一行 3 字段**"（≈55px），见 `DETAIL_SLOT_COUNT`；
+     ③ 两张"事实卡"（各 38px + 间距）压成**一条 34px 的统计条**。
+   合计一屏能多出三四条记录的展示空间。
+   ============================================================ */
+
+/* ---------------- 统计条：一格一个数，中间一条竖线 ---------------- */
+
+/*
+ * 设计稿（用户给的"手动勾选"那张）：一条浅底细边的横条，左格「已勾选 0/50」、
+ * 右格「范围内记录 345 条」，两格之间一条竖分隔线。
+ *
+ * ⚠️ 类名用 `.wiz-stat*` 而**不是**复用 `.wiz-fact*`：`.wiz-fact` 是**第④步**那四张卡在用的
+ *    （浅灰底、标签在上、18px 数字在下）。两者版式完全不同，共用一个类名会互相污染 ——
+ *    这个项目一贯的口径是"两件不一样的事，别让它长成一个样子"。
+ */
+.wiz-stat {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface-inset);
+  overflow: hidden;
+}
+
+.wiz-stat-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px var(--sp-3);
+}
+
+/* 两格之间那条竖线：只用 `::before` 画在**第二格**上，免得少数一格时拖一条尾巴 */
+.wiz-stat-cell + .wiz-stat-cell {
+  position: relative;
+}
+
+.wiz-stat-cell + .wiz-stat-cell::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: var(--line);
+}
+
+.wiz-stat-k {
+  flex: none;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.wiz-stat-v {
+  min-width: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 文字型取值（"一份多页文档"）压一档字重，别跟数字抢 */
+.wiz-stat-v.is-text {
+  font-weight: var(--fw-medium);
+}
+
+/* 数字后面的单位 / 上限（`/50`、`条`）：弱化，别让人以为是同一个量 */
+.wiz-stat-sub {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-regular);
+  color: var(--text-3);
+}
+
+/* ---------------- 两个读取入口：并排等宽 ---------------- */
+
+/*
+ * 设计稿：左「读取左表勾选（多条）」是主按钮、右「光标所在行」是次要按钮，**各占一半**。
+ * 原来是 `.wiz-tool-row`（靠左、`.app-btn.sm` 28px 高的小按钮），
+ * 在 320px 侧栏里两个小按钮挤在左边，看不出"从哪儿读"才是这一页的主线。
+ * ⚠️ 窄面板（320px）下这里每边约 140px，长文案（"读取左表勾选（多条）"9 个汉字）刚好放得下；
+ *    再窄就省略号收尾 —— 不允许把两栏挤成换行（那样按钮会变两个高度）。
+ */
+.wiz-read-row {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.wiz-read-row .app-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 var(--sp-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------------- 手动勾选的空状态（图标 + 标题 + 一句怎么做） ---------------- */
+
+/*
+ * 设计稿：一个浅色虚线盒子，里面一个"表单"图标（放在圆角小方块里）、
+ * 一行标题「还没有带入记录」、一行说明「在左侧表格勾选整行后，点击上方「读取左表勾选」即可加入。」
+ *
+ * ⚠️ 它取代了原来的**两处**说明：盒子外那行 hint（"勾选在多维表格里做…"）+ 盒子里那行
+ *    （"还没有带入任何记录 —— 按上面的说明…"）。同一件事说两遍正是用户说的"太多东西"。
+ * ⚠️ 虚线样式与模板页的空状态（`.wiz-empty`）保持一致："空的"就是虚线，全项目一个语言。
+ */
+.wiz-empty-box {
+  padding: var(--sp-5) var(--sp-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-inset);
+  text-align: center;
+}
+
+.wiz-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-bottom: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-2);
+}
+
+.wiz-empty-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.wiz-empty-hint {
+  margin: 2px 0 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}

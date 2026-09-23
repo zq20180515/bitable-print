@@ -1,0 +1,861 @@
+/* 外壳与通用组件样式。所有颜色来自 tokens.css，暗黑模式自动生效。 */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  background: var(--bg-page);
+}
+
+/* ---------------- 顶栏 ---------------- */
+
+.app-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  height: 44px;
+  padding: 0 var(--sp-4);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.app-bar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+/* 用纯 CSS 画一个极简标记，避免引入图标库/图片资源 */
+.app-logo {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  position: relative;
+}
+.app-logo::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: 6px;
+  height: 1.5px;
+  background: #fff;
+  box-shadow: 0 3px 0 #fff;
+}
+
+.app-title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-bar-right {
+  flex: none;
+}
+
+.app-theme {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+}
+
+.app-theme:hover {
+  background: var(--surface-hover);
+  color: var(--text-1);
+}
+
+/* ---------------- 提示条 ---------------- */
+
+.app-banner {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  border-bottom: 1px solid var(--line);
+}
+
+.app-banner.warn {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.app-banner-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ---------------- 标签页 ---------------- */
+
+.app-tabs {
+  flex: none;
+  display: flex;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3) 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.app-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+  padding: 6px 10px 8px;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--t-fast);
+}
+
+.app-tab:hover {
+  color: var(--text-1);
+}
+
+.app-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ---------------- 主体 ---------------- */
+
+.app-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.app-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-4);
+  height: 100%;
+  padding: var(--sp-6);
+}
+
+.app-center-text {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.app-spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  animation: app-spin 0.7s linear infinite;
+}
+
+@keyframes app-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------------- 错误卡片 ---------------- */
+
+.app-error {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--danger);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+  max-width: 340px;
+  min-width: 0;
+}
+
+.app-error-title {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text-1);
+}
+
+.app-error-msg {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
+.app-error-hint {
+  margin: 0 0 var(--sp-5);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  color: var(--text-2);
+}
+
+.app-error-actions {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+/* ---------------- 通用按钮 ---------------- */
+
+.app-btn {
+  appearance: none;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  padding: 7px 14px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: background var(--t-fast);
+  white-space: nowrap;
+}
+
+.app-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.app-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.app-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.app-btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.app-btn.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.app-btn.sm {
+  font-size: var(--fs-sm);
+  padding: 4px 10px;
+}
+
+/* ---------------- 通用卡片 / 区块 ---------------- */
+
+.app-section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  min-width: 0;
+}
+
+.app-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--line-faint);
+}
+
+.app-section-title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text-1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-section-body {
+  padding: var(--sp-4);
+  min-width: 0;
+}
+
+.app-pad {
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+/* ---------------- 键值行（替代宽表格，侧栏下不会横向滚动） ---------------- */
+
+.app-kv {
+  display: grid;
+  grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
+  gap: var(--sp-2) var(--sp-4);
+  font-size: var(--fs-sm);
+  min-width: 0;
+}
+
+.app-kv dt {
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.app-kv dd {
+  margin: 0;
+  color: var(--text-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- 状态徽标 ---------------- */
+
+.app-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  background: var(--surface-3);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.app-chip.ok {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.app-chip.warn {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+.app-chip.danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.app-chip.accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* 类型色块（用于字段胶囊，颜色由 fieldMeta().tint 内联注入） */
+.app-tint {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+/* ---------------- 字段列表（单列 Grid，长名省略） ---------------- */
+
+.app-field-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  min-width: 0;
+}
+
+.app-field-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 5px var(--sp-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  min-width: 0;
+}
+
+.app-field-item:hover {
+  background: var(--surface-hover);
+}
+
+.app-field-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-1);
+}
+
+.app-field-type {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+@media (max-width: 340px) {
+  .app-kv {
+    grid-template-columns: 1fr;
+    gap: 0 0;
+  }
+  .app-kv dt {
+    margin-top: var(--sp-2);
+  }
+}
+
+/* ---------------- 补充工具类 ---------------- */
+
+.app-mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.app-empty {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+
+.app-note {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-2);
+}
+
+.app-note.danger {
+  color: var(--danger);
+}
+
+.app-dim {
+  color: var(--text-4);
+}
+
+/* 字段取值：单列网格里独占第二行，长内容省略 */
+.app-field-value {
+  grid-column: 2 / -1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- 四步向导 ---------------- */
+
+.wiz {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  min-width: 0;
+}
+
+.wiz-steps {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.wiz-step {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: var(--sp-1) 0;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.wiz-step:disabled {
+  cursor: default;
+}
+
+.wiz-step-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  background: var(--surface-3);
+  color: var(--text-3);
+}
+
+.wiz-step.active .wiz-step-dot {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.wiz-step.done .wiz-step-dot {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.wiz-step-label {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.wiz-step.active .wiz-step-label {
+  color: var(--accent);
+  font-weight: var(--fw-medium);
+}
+
+.wiz-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+.wiz-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-bottom-bar);
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+
+.wiz-foot .app-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 分段控件 */
+.seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface-3);
+  border-radius: var(--r-md);
+  min-width: 0;
+}
+
+.seg-item {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-2);
+  padding: 5px 6px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+
+.seg-item:hover:not(:disabled):not(.active) {
+  color: var(--text-1);
+}
+
+.seg-item.active {
+  background: var(--surface);
+  color: var(--text-1);
+  box-shadow: var(--shadow-sm);
+}
+
+.seg-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wiz-block {
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.wiz-label {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text-1);
+  margin-bottom: var(--sp-2);
+}
+
+.wiz-hint {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-3);
+}
+
+.wiz-todo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-lg);
+  background: var(--surface-inset);
+}
+
+.wiz-todo-title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  color: var(--text-1);
+}
+
+.wiz-todo-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  color: var(--text-2);
+}
+
+/* 勾选记录列表（D-2 决策：插件内自建勾选列表，不依赖未公开的选中态读取能力） */
+.wiz-pick {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  max-height: 300px;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.wiz-pick-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: center;
+  padding: 5px var(--sp-2);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.wiz-pick-row:hover:not(.off) {
+  background: var(--surface-hover);
+}
+
+.wiz-pick-row.on {
+  background: var(--accent-soft);
+}
+
+.wiz-pick-row.off {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.wiz-pick-row input {
+  margin: 0;
+  flex: none;
+  accent-color: var(--accent);
+}
+
+.wiz-pick-text {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-width: 0;
+}
+
+.wiz-pick-main {
+  font-size: var(--fs-sm);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wiz-pick-sub {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+
+/*
+ * 顶栏里的"当前作用数据表"（2026-09-19 用户要求）。
+ *
+ * 用胶囊而不是纯文字：它是一枚**状态标记**（"我现在作用在这张表上"），
+ * 与旁边的插件名 `app-title` 在视觉层级上必须分开，
+ * 否则用户会把它读成标题的一部分。
+ */
+.app-scope {
+  margin-left: var(--sp-2);
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  max-width: 42vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   UI 重设计（2026-09-21）—— 基础控件与外壳
+   ------------------------------------------------------------
+   依据用户给的《排版打印插件 · UI 重设计稿》。这一节**放在文件末尾**，
+   靠**源码顺序**覆盖上面同名选择器（CSS 同权重后者胜）——
+   上面那几层是历次迭代攒下来的，这里只做"按设计稿收敛"，不删旧规则。
+
+   设计稿的三条硬口径：
+     · 主色 #3370ff **只给主 CTA**（`--accent`）；页面内操作一律次要按钮；
+     · 圆角统一 6/8/10（见 tokens.css 的 --r-* 尺度说明）；
+     · 文字三级灰阶 --text-1/2/3，序号、时间、标签一律弱化到 --text-3。
+   ============================================================ */
+
+/* ---------------- 按钮：只有两级 ---------------- */
+
+.app-btn {
+  /* 设计稿：高 36 / 圆角 8 / 13px；次要按钮用 1px --line（比原来的 --line-strong 轻一档） */
+  height: 36px;
+  padding: 0 var(--sp-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text-1);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+}
+
+.app-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.app-btn.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.app-btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+/* 小号：给"页面内"的次要操作（添加筛选条件、菜单项…）。高度压到 28，不跟主 CTA 抢视线 */
+.app-btn.sm {
+  height: 28px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+}
+
+/* ---------------- 分段控制器：白底浮起 ---------------- */
+
+.seg {
+  background: var(--track-bg);
+  border-radius: var(--r-md);
+  padding: 3px;
+  gap: 2px;
+}
+
+.seg-item {
+  border-radius: var(--r-sm);
+  padding: 6px 4px;
+  font-size: var(--fs-md);
+}
+
+.seg-item.active {
+  background: var(--surface);
+  color: var(--text-1);
+  font-weight: var(--fw-semibold);
+  box-shadow: 0 1px 3px rgba(31, 35, 41, 0.08);
+}
+
+/* ---------------- 底部操作栏：主按钮钉在面板最底部 ---------------- */
+
+/*
+ * ⚠️ `.wiz-foot` 的最终形态**写在 wizard.css 的「UI 重设计」段**，不在本文件。
+ *
+ * 原因是**选择器优先级**：本文件里写 `.wiz-foot`（0,1,0）会被 wizard.css 里早就存在的
+ * `.wiz .wiz-foot`（0,2,0）盖掉 —— 而本文件这一节是靠"源码顺序靠后"取胜的写法，
+ * 遇到更高优先级的旧规则就**静默失效**（这种"改了没反应"最难查）。
+ * 所以底栏那几条（gap / padding / 边框色 / 左右按钮比例）统一放去那边，
+ * 与它要覆盖的那条规则**同级同文件**，谁后写谁赢，一眼能看清。
+ *
+ * 这里只留一句口径备忘：主按钮唯一、永远在底部同一位置、内容区在它上方滚动
+ * （用户 2026-09-21 点名要求的第一条，三屏通用）。
+ */
+
+/* ---------------- 主题切换：图标按钮 ---------------- */
+
+/*
+ * 设计稿右上角是一个**图标按钮**（半圆日月），而原来是一个写着"自动/浅色/深色"的文字按钮。
+ *
+ * ⚠️ **保留三态循环**（自动 → 浅色 → 深色）：`auto` 不是可有可无的选项 ——
+ *   它跟随**飞书自己的主题**（见 App.tsx 的 readFeishuTheme / onFeishuThemeChange），
+ *   是 PRD F7-06 的"跟随宿主"。设计稿画的是两态，但把 `auto` 删掉是**功能损失**，
+ *   所以这里只把外观换成图标、状态挂到 title 上（用户要求的是"右上角图标切换"）。
+ */
+.app-theme {
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-theme:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.app-theme svg {
+  width: 14px;
+  height: 14px;
+}
