@@ -62,6 +62,12 @@ export interface ToolbarProps {
   selectedCellId: string | null
   defaultTextStyle: TextStyle
   /** 窄侧栏：把最占地方的字体/字号收进一个小弹层 */
+  /**
+   * 模板类型（`record` = 一条记录一份；`view` = 多条记录一张）。
+   * 顶栏那颗「当前模式」胶囊要用它 —— 见 `Toolbar` 里 `kindChip` 的注释（2026-09-23 第 9 条）。
+   * 用内联联合而不是引 `TemplateKind`：这里只需要这两个字面量，不引一整个领域类型。
+   */
+  kind?: 'record' | 'view'
   compact?: boolean
   canUndo: boolean
   canRedo: boolean
@@ -100,6 +106,27 @@ export function Toolbar(props: ToolbarProps) {
   const { doc, nodeTarget, selected, selectedCellId, defaultTextStyle } = props
   const ps = doc.pageSetup
   const render = pageRenderSize(ps)
+
+  /*
+   * ── 顶栏那颗「当前模式」胶囊（2026-09-23 第 9 条）──────────────────────────
+   * 用户原话：「画布编辑页顶部，页面设置前面，用胶囊样式显示当前模板类型」。
+   *
+   * ⚠️ 它显示的是**两个正交的事实**（模板类型 · 数据布局），刻意不只显示类型 ——
+   * 因为在第 7 条那个 bug 里，这两者已经脱钩了：类型是"记录/视图"，
+   * 而实际排法由表格自己的「多条记录排进同一张表」决定。只显示类型，
+   * 用户就会继续以为"类型决定了打印成什么样" —— 那正是他踩的那个坑。
+   */
+  const mergedLoop = doc.bands.loop.elements.some((el) => el.kind === 'table' && el.rowsFromRecords === true)
+  const kindChip = {
+    kind: props.kind === 'record' ? '记录模板' : '视图模板',
+    layout: mergedLoop ? '连续大表' : '一条一份',
+    tip:
+      (props.kind === 'record' ? '记录模板：默认一条记录一份文档' : '视图模板：默认多条记录排进同一张表') +
+      (mergedLoop
+        ? '；当前开启了「多条记录排进同一张表」，所有记录铺在一张表里'
+        : '；当前是「一条一份」，每条记录单独渲染一份表格') +
+      '。要改布局：选中那张表 → 右侧属性面板 → 表格 → 「连续打印」。',
+  }
 
   // ---- 认出"当前最细的一层"。顺序即层级：节点 > 单元格 > 元素 > 默认 ----
   const scope: ToolScope = nodeTarget
@@ -497,6 +524,15 @@ export function Toolbar(props: ToolbarProps) {
       </Popover>
 
       <div className="bp-top__spacer" />
+
+      {/* ---- 当前模式胶囊（第 9 条）：模板类型 · 数据布局 ---- */}
+      <span className="bp-kindchip" title={kindChip.tip}>
+        <span className="bp-kindchip__k">{kindChip.kind}</span>
+        <span className="bp-kindchip__dot" aria-hidden>
+          ·
+        </span>
+        <span className="bp-kindchip__v">{kindChip.layout}</span>
+      </span>
 
       {/* ---- 右：纸张 / 方向 / 页面设置 / 预览 ---- */}
       <div className="bp-tools__group bp-tools__group--paper">

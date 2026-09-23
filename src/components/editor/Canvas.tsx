@@ -349,6 +349,16 @@ export interface CanvasProps {
    * 这样"什么时候该收"只有一个判据（见 EditorShell 里那个 effect），不会两处各判一次。
    */
   onOpenTableSize?(tableId: string): void
+  /**
+   * 把"退出**表格编辑态**"的能力交给宿主（2026-09-23 真机反馈第 5 条）。
+   *
+   * 用户原话：「画布编辑下，按 Esc 是退出编辑，不是退出大屏」。
+   * `editTableId` 是画布内部状态，而 Esc 的仲裁链在 `EditorShell` ——
+   * 与其为它做一次受控 prop 提升（会牵动画布里 3 处用法），不如让画布
+   * **把"当前怎么退出去"注册上去**：调用方拿到 `null` 就表示"现在没有在编辑"。
+   * 传 `null` 表示注销（组件卸载或编辑态结束时）。
+   */
+  onExposeExitEdit?(fn: (() => boolean) | null): void
   /** 正在拖拽时，这一下的落点判定结果（可放置的格子 / 会被拒绝的理由） */
   dropTarget?: DropTarget
   /** 节点级选中（字段/文字/系统变量占位符本身） */
@@ -679,7 +689,25 @@ interface CodePreview {
  * 拿字段名硬编一个码出来，用户会以为那就是打印效果，扫描出来却是一串假数据。
  * 所以这里只画一个明确的占位框，并把"打印时逐条生成"写在 title 里。
  */
-function codePreview(el: Extract<AnyElement, { kind: 'qrcode' | 'barcode' }>, fields: FieldMeta[]): CodePreview {
+/**
+ * 画布上的码预览。
+ *
+ * `boxWidthMm` = **格内**专用：这一格的内容区宽度（mm）。
+ *
+ * ⚠️ 为什么必须有它（真机反馈 2026-09-23 第 2 条：「单元格内拖入二维码、条形码……
+ * 条形码会显示，二维码不会显示」）：
+ * 格内子元素的 `w` 是**占格宽百分比**（`w: 100` = 占满这一格），而自由层的 `w` 是 **mm**。
+ * 这里原来一律 `finite(el.w, …)` 当 mm 用 ⇒ 格内算出 `wMm = 100`，
+ * 二维码 `sizeMm = min(100, hMm)` 直接画出**一个 10cm 见方的码**，
+ * 溢出格子后被外层盒子的 `overflow:hidden` 裁掉 ⇒ 用户看到的是"**完全不显示**"；
+ * 条形码是长条，被裁掉两端后还剩中间一段 ⇒ "条形码会显示"。
+ * （打印端在 `render/html.ts` 里是同一个毛病，已同步修。）
+ */
+function codePreview(
+  el: Extract<AnyElement, { kind: 'qrcode' | 'barcode' }>,
+  fields: FieldMeta[],
+  boxWidthMm?: number,
+): CodePreview {
   const background = el.background || DEFAULT_CODE_BG
   const foreground = el.foreground || DEFAULT_CODE_FG
   const src = el.source
@@ -708,18 +736,23 @@ function codePreview(el: Extract<AnyElement, { kind: 'qrcode' | 'barcode' }>, fi
   // 而 e2e 断言"无未捕获异常"，一个畸形字符串就能把整条链路判死。
   let svg: string | null = null
   try {
+    /*
+     * 尺寸依据：**格内用格宽**（`boxWidthMm`）、自由层用元素自己的 `w`（mm）。
+     * ⚠️ 混用这两套语义就会画出 100mm 的码 —— 详见函数头上那段说明。
+     */
+    const wMm = boxWidthMm != null ? Math.max(4, boxWidthMm) : finite(el.w, el.kind === 'qrcode' ? 28 : 50)
     const hMm = el.h === 'auto' ? elementHeightMm(el) : Math.max(1, finite(el.h, 20))
     // 二维码必须是正方形：宽高被拉成不一致时取小值，宁可留白也不要画出扫不出来的畸形码
     svg =
       el.kind === 'qrcode'
         ? qrCodeSvg(text, {
-            sizeMm: Math.max(4, Math.min(finite(el.w, 28), hMm)),
+            sizeMm: Math.max(4, Math.min(wMm, hMm)),
             ...(el.ecLevel ? { ecLevel: el.ecLevel } : {}),
             foreground,
             background,
           })
         : barcodeSvg(text, {
-            widthMm: Math.max(4, finite(el.w, 50)),
+            widthMm: Math.max(4, wMm),
             heightMm: Math.max(4, hMm),
             showText: !!el.showText,
             foreground,
@@ -777,6 +810,7 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     onSelect,
     onSelectCell,
     onOpenTableSize,
+    onExposeExitEdit,
     onSetMargin,
     onElementIntoCell,
     onSelectNode,
@@ -850,6 +884,28 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
    * 这样平时是一块可移动的内容，点了编辑才是一张可改的表。
    */
   const [editTableId, setEditTableId] = useState<string | null>(null)
+  /**
+   * 把"退出表格编辑态"注册给宿主（2026-09-23 真机反馈第 5 条：全屏下 Esc 该**先退编辑**、
+   * 而不是把整块画布缩回小尺寸）。宿主（`EditorShell`）的 Esc 仲裁链需要两样东西：
+   * 「现在有没有在编辑」的判据 + 「怎么退出去」的动作，而 `editTableId` 是画布内部状态 ——
+   * 用注册回调比受控 prop 提升改动小得多（后者要动画布里 3 处 `setEditTableId`）。
+   * 每次 `editTableId` 变化就重注册一次，宿主拿到的永远是**当前**那个函数。
+   * ⚠️ 卸载/编辑结束时注册 `null`（表示"没在编辑"），否则宿主会拿着一把过期的钥匙。
+   */
+  useEffect(() => {
+    if (!onExposeExitEdit) return
+    onExposeExitEdit(
+      editTableId
+        ? () => {
+            setEditTableId(null)
+            // 顺带清掉格子选区：编辑表格与"选中某几个格子"是同一件事的两面
+            setCellSel(null)
+            return true
+          }
+        : null,
+    )
+    return () => onExposeExitEdit(null)
+  }, [editTableId, onExposeExitEdit])
   /** 选中项一旦不再是那张表（点了别的元素 / 空白），就退出编辑态 —— 不留一个幽灵编辑态 */
   useEffect(() => {
     if (editTableId && selectedId !== editTableId) setEditTableId(null)
@@ -1034,22 +1090,33 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   )
 
   /**
-   * 每页重复区内容的底部（mm，版心坐标系）—— 渲染层 `headerReserve` 的画布等价量。
+   * 表头区元素的**估算底边**（mm，版心坐标系）—— 渲染层 `headerReserve` 的画布等价量。
    *
-   * 渲染层在 `render/pipeline.ts:337-339` 用**实测**出来的 headerReserve 算循环区偏移：
-   * `loopOffset = max(0, loop.offsetMm - headerReserve)`；分页时还会用
-   * `max(块.y, 游标)` 再兜一次底，而游标的起点正是 headerReserve
-   * （`render/layout.ts:343-345`、`:357`、`:360`）。
+   * ⚠️ 它**只用来做避让上限**，绝不能再当循环区的 `floorMm`（那是真机反馈第 3 条的现场）：
    *
-   * 表格高度只有 DOM 能量出来，画布拿不到那次测量结果，这里代入同一位置上的**估算**值
-   * `elementHeightMm`：公式一模一样，只是高度来源从"实测"换成"估算"。
+   * 真机反馈 2026-09-23 第 3 条：「拖动表头区的元素时，会带动循环区的元素移动」（附 GIF）。
+   * 上一批已经把 `computeBandLayout` 改成"分区互不依赖"，但画布这边**又把它装回去了** ——
+   * 循环区元素的落点当时是 `max(el.y + (loopTop - headerReserve), headerReserve)`，
+   * 而 `headerReserve` 是表头区元素的实测底边：在表头里往下拖 3mm，它就从 12 变 15，
+   * 落点跟着从 12 变 15，整个循环区被推下去 —— GIF 里那个"表格整体下移"就是这么来的。
+   *
+   * 现在改用**声明值优先**（见下面 `loopStartMm`）：`headerReserve` 只在
+   * "表头内容真的比声明高度还高"时才会顶上去（不避让就会与循环区叠在一起）。
+   * 而表头区元素被夹在这一带之内（见 `beginSession` 的 `ceilMm`），
+   * `headerReserve ≤ layout.loopTopMm` 是个**不变量** ⇒ 拖表头元素不会让循环区动一分。
    */
   const headerReserveMm = useMemo(
     () => doc.bands.header.reduce((m, el) => Math.max(m, nz(el.y, 0) + elementHeightMm(el)), 0),
     [doc.bands.header],
   )
-  /** 循环区元素相对版心顶部的额外位移 —— 同 `render/pipeline.ts:339` 的 `loopOffset` */
-  const loopOffsetMm = Math.max(0, layout.loopTopMm - headerReserveMm)
+  /**
+   * 循环区起点（mm）= `max(用户声明的表头区高度, 表头块估算底边)`。
+   *
+   * ⚠️ 这个公式必须与渲染侧 `render/pipeline.ts` 的 `loopOffset` **逐字一致**
+   *    （那边用实测高度，这边用估算）—— 两份实现一旦分叉，
+   *    就会出现"画布上摆得好好的、打印出来整体偏几毫米"这类极难归因的问题。
+   */
+  const loopStartMm = Math.max(layout.loopTopMm, headerReserveMm)
 
   /**
    * 表尾区整组占用的高度（mm）—— 渲染层 `footerReserve`（`render/layout.ts:176`
@@ -1069,28 +1136,27 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   /**
    * 版式区把元素往下推多少（`offsetMm`）、推到哪儿就不许再往上（`floorMm`）。
    *
-   * 三个数都是从渲染侧的真实定位抄过来的（只把"实测高度"换成"估算高度"）：
-   *  - 页级重复区 `placeBlock(b, b.xMm, b.yMm)` —— 绝对定位，每页克隆一份，offset = 0
-   *  - 循环区 `rowTop = max(b.y + loopOffset, 游标)`、游标起点 = headerReserve
-   *    （`render/layout.ts:343-345`、`:357`、`:360`）—— offset = loopOffset，floor = headerReserve
-   *  - 表尾区 `top = max(0, contentH - footerReserve)`、`placeBlock(b, b.xMm, top + b.y)`
-   *    （`render/layout.ts:409-410`）—— 整组从版心**底部**往上量
+   * ⚠️ **两个数必须只来自"该区自己声明的量"**（2026-09-23 真机反馈第 3 条）：
+   *    只要有一个数来自别区的**内容高度**，那个区就会"被拖走"。
+   *    这里每个区的 offset 与 floor 都取同一个值，于是落点恒为 `起点 + el.y`，
+   *    拖别区的元素不会让本区动一分。
+   *
+   *  - 表头区 `placeBlock(b, b.xMm, b.yMm)` —— 绝对定位，每页克隆一份，起点 = 0
+   *  - 循环区 起点 = `loopStartMm`（= `max(声明值, 表头块估算底边)`，见上面）
+   *  - 表尾区 起点 = `layout.footerTopMm`（贴版心底部，且已有保底高度）
+   *    —— 打印时表尾是从版心**底部往上量**的（`render/layout.ts` 的
+   *    `top = max(0, contentH - footerReserve)`）。画布**故意不照抄**那个位移：
+   *    底部锚定下"最靠下的那条表尾元素"画出来恒等于 `contentH - h`，与它自己的 y
+   *    毫无关系 —— 拖动它画布上纹丝不动，反是同区其它元素跟着往上跑，那一区就没法编辑了。
+   *    所以画布按"版式区自上而下"堆叠，真实打印落点由 `.bp-band__note` 明说。
    */
   const bandGeom = useCallback(
     (band: BandKey): { offsetMm: number; floorMm: number } => {
-      if (band === 'loop') return { offsetMm: loopOffsetMm, floorMm: headerReserveMm }
-      // 表尾区：打印时贴在版心底部，画布这里**故意不照抄**那个位移。
-      //
-      // 底部锚定 = `画布 y = contentH - footerReserve + el.y`，而 `footerReserve`
-      // 又是 `max(el.y + h)`。于是当前最靠下的那条表尾元素画出来恒等于
-      // `contentH - h` —— 与它自己的 y 毫无关系：拖动它，画布上**纹丝不动**，
-      // 反倒是同区其它元素跟着往上跑。表尾在这种定位下没有可编辑的空间。
-      // 所以画布按"版式区自上而下"的顺序堆叠，把表尾画在它自己的分界线之下，
-      // 打印时的真实落点由 `.bp-band__note` 明说。
+      if (band === 'loop') return { offsetMm: loopStartMm, floorMm: loopStartMm }
       if (band === 'footer') return { offsetMm: layout.footerTopMm, floorMm: layout.footerTopMm }
       return { offsetMm: 0, floorMm: 0 }
     },
-    [headerReserveMm, layout.footerTopMm, loopOffsetMm],
+    [layout.footerTopMm, loopStartMm],
   )
 
   /**
@@ -1099,7 +1165,7 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
    * ⚠️ 曾经这里是直接 `el.y`，于是「通用清单」的列头表（每页重复区）与数据表（循环区）
    * 在画布上**完全叠在一起**：循环区那张表既看不见、也只能靠撒点采样才点得到，
    * 刚做的「多记录并成一张大表」开关几乎不可达。根因是 `el.y` 一律从版心顶部算，
-   * 而循环区元素的真正落点还要叠加版式区的起点（见上面 headerReserveMm 的注释）。
+   * 而循环区元素的真正落点还要叠加版式区的起点（见上面 `bandGeom` 的注释）。
    */
   const bandTopMm = useCallback(
     (band: BandKey, el: AnyElement): number => {
@@ -2477,7 +2543,7 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
    * ⚠️ 与自由层元素的画法**同一套取值**（图片的 `object-fit`、码的 svg 串），
    *    否则"同一张图在格子里和在画布上长得不一样"这种事迟早出现。
    */
-  const renderCellChild = (child: AnyElement): ReactNode => {
+  const renderCellChild = (child: AnyElement, cellW: number): ReactNode => {
     if (child.kind === 'image') {
       /*
        * ⚠️ 还没选图时**必须给占位盒**（2026-09-23 真机反馈第 2 条）。
@@ -2505,7 +2571,7 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       )
     }
     if (child.kind === 'qrcode' || child.kind === 'barcode') {
-      const p = codePreview(child, fields)
+      const p = codePreview(child, fields, cellW * (childWidthPct(child) / 100))
       if (p.svg) {
         return <span className="bp-el-cell__child-code" dangerouslySetInnerHTML={{ __html: p.svg }} />
       }
@@ -2627,6 +2693,24 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
                      * 复合 id 只在这里算一次（下面渲染子元素还要用同一个值）。
                      */
                     const childKey = cellChildId(el.id, c.id)
+                    /*
+                     * 这一格的**宽度（mm）** —— 只给格内码预览定尺寸用。
+                     *
+                     * ⚠️ 与渲染端同口径：**从本行第一格起累加 `colspan`** 推出起始列号
+                     * （数组下标 ≠ 网格列号，跨列合并时尤其明显）。
+                     * 取不到列宽时退化成 4mm（很小但可见），**绝不退化成 0** —— 那会让码彻底消失。
+                     */
+                    const cellBoxMm = (() => {
+                      let col = 0
+                      for (const cc of row.cells) {
+                        if (cc.id === c.id) break
+                        col += Math.max(1, Math.floor(finite(cc.colspan, 1)))
+                      }
+                      const sp = Math.max(1, Math.floor(finite(c.colspan, 1)))
+                      let sum = 0
+                      for (let k = 0; k < sp; k++) sum += el.colWidthsMm?.[col + k] ?? 0
+                      return Math.max(4, sum)
+                    })()
                     const childSel = selectedId === childKey
                     const selected = (selectedId === el.id && selectedCellId === c.id) || childSel
                     const cellEditing = editingId === el.id && editingCellId === c.id
@@ -2714,7 +2798,7 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
                                     })
                                   }}
                                 >
-                                  {renderCellChild(child)}
+                                  {renderCellChild(child, cellBoxMm)}
                                 </span>
                               )
                             })}

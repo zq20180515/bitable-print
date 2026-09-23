@@ -38,6 +38,8 @@ import { findElement, readBand, withBand, type BandKey } from './doc-bands'
  * `round.ts` 只依赖 `lib/types`，因此不影响"本文件要能被 Node 直接加载"这条约束。
  */
 import { round1 } from './round'
+// 尺寸口径的规范实现在 lib/（见下方 re-export 处的说明）—— 这里要**本地**用到 `childWidthPct`
+import { childWidthPct } from '../../lib/cell-geometry'
 
 const PREFIX = 'child:'
 
@@ -146,32 +148,14 @@ export function isCellChildId(id: string | null | undefined): boolean {
 // ============================================================
 
 /** 占单元格宽度的百分比的**下限**：再窄就看不见了，那种"拖了半天什么都没了"必须堵掉 */
-export const MIN_CELL_CHILD_PCT = 10
-
-/**
- * 子元素占单元格宽度的百分比（渲染用）。
- *
- * 容错要点：老数据（这个字段还没被当成百分比之前建的）里 `w` 是 mm 数（如 40），
- * 直接当百分比用会得到 40% —— 那还能看；但 `w` 缺失/为 0/为负时会退化成"0 宽"（看不见），
- * 所以**一律退回 100**。超过 100 的也夹回 100（格子里的东西不该横向溢出去）。
+/*
+ * ⚠️ `MIN_CELL_CHILD_PCT` / `childWidthPct` / `childHeightMm` 的**规范实现**已下沉到
+ * `lib/cell-geometry.ts`。理由与 `round1` 那条一样，只是方向相反：
+ * **渲染引擎**（`render/html.ts`）也要用同一套口径，而 `render/` 绝不能反向 import
+ * `components/editor/`（会形成循环依赖，且渲染引擎必须能被 Node 直接加载）。
+ * 这里只做 re-export，保住全部既有引用（含 `cell-child.selftest.mts` 与 Canvas）。
  */
-export function childWidthPct(child: Pick<AnyElement, 'w'>): number {
-  const raw = typeof child.w === 'number' && Number.isFinite(child.w) ? child.w : 100
-  if (raw <= 0) return 100
-  return Math.max(MIN_CELL_CHILD_PCT, Math.min(100, raw))
-}
-
-/**
- * 子元素的固定高度（mm）；`h: 'auto'` 或非正数 → `null`（= 由内容决定，与自由层同一语义）。
- *
- * 有固定高度时画布/打印会给它一个**定高的盒子**（`overflow:hidden`），
- * 图片按 `fit` 适配这个盒子 —— 和自由层那张图片的行为一模一样，用户不用学第二套。
- */
-export function childHeightMm(child: Pick<AnyElement, 'h'>): number | null {
-  const h = child.h
-  if (typeof h !== 'number' || !Number.isFinite(h) || h <= 0) return null
-  return h
-}
+export { MIN_CELL_CHILD_PCT, childHeightMm, childWidthPct } from '../../lib/cell-geometry'
 
 /**
  * **进格子**：把一个自由层元素归一化成格内子元素。

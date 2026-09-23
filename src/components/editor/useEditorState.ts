@@ -478,17 +478,49 @@ export interface BandLayout {
  *
  * 循环区高度 = 两者之间剩下的空间（不再是"内容高度"）。
  */
+/**
+ * 表尾区**最少**要留多高（mm）—— 真机反馈 2026-09-23 第 4 条：「表尾区有时候会被彻底吞没，
+ * 至少留保底空间」。
+ *
+ * 24 不是随手取的：它比"一行正文 + 上下内边距"略高，足够画出一条分界线、
+ * 把元素拖进去、并让「表尾区」三个字（`.bp-band__note`）看得见。
+ * 比它再小，用户就只能看到一个挤成缝的框 —— 那和"没有"在使用体验上是同一件事。
+ */
+export const MIN_FOOTER_EXTENT_MM = 24
+
+/**
+ * 表头区**最多**能占多高：版心高 − 表尾保底 − 循环区保底。
+ *
+ * 为什么必须封顶：三个区共用一条版心高度，谁都不能把别人挤没。
+ * 用户把表头区调到 250mm 时，原实现算出的 `footerTop = max(250+40, 257) = 290 > 277`
+ * ⇒ 表尾区整块落到版心**外面**，画布上连它自己的分界线都画不出来（"被吞没"的现场）。
+ */
+function maxHeaderExtentMm(contentHMm: number): number {
+  return Math.max(0, contentHMm - MIN_FOOTER_EXTENT_MM - MIN_LOOP_EXTENT_MM)
+}
+
 export function computeBandLayout(doc: TemplateDoc): BandLayout {
   const { w: contentWMm, h: contentHMm } = contentBoxSize(doc.pageSetup)
-  const loopTopMm = Math.min(Math.max(0, finite(doc.bands.loop.offsetMm)), contentHMm)
+
+  // ① 表头区高度 = 用户声明值，但**不许把另外两区挤没**（见 maxHeaderExtentMm）
+  const declaredHeaderMm = Math.max(0, finite(doc.bands.loop.offsetMm))
+  const loopTopMm = Math.min(declaredHeaderMm, maxHeaderExtentMm(contentHMm))
 
   /** 表尾区整组占用的高度（与 Canvas 的 `footerReserveMm`、渲染层的 `footerReserve` 同一口径） */
   const footerReserveMm = doc.bands.footer.reduce((m, el) => Math.max(m, finite(el.y, 0) + elementHeightMm(el)), 0)
-  /* 表尾区：贴版心底部（与打印一致）；至少留一块可见空间，且不许压到循环区的下界 */
-  const footerTopMm = Math.max(
-    loopTopMm + MIN_LOOP_EXTENT_MM,
-    Math.min(contentHMm, contentHMm - footerReserveMm),
-  )
+
+  // ② 首选：贴版心底部（= 渲染层的落点 `max(0, contentH - footerReserve)`）
+  const bottomAnchoredMm = Math.min(contentHMm, contentHMm - footerReserveMm)
+  // ③ 下限：不许压进循环区（循环区保底 MIN_LOOP_EXTENT_MM）
+  const loopFloorMm = loopTopMm + MIN_LOOP_EXTENT_MM
+  // ④ 上限：必须给自己留出保底高度 —— **宁可压循环区，也不能让自己消失**
+  const footerCeilMm = Math.max(loopTopMm, contentHMm - MIN_FOOTER_EXTENT_MM)
+  /*
+   * 顺序很重要，别合并成一句：
+   *   先 `max(贴底, 循环区下界)` 满足②③，再 `min(..., 表尾保底上限)` 满足④。
+   * 反过来写（先 min 后 max）会在小版心上把表尾区顶出版心 —— 那正是要修的那个 bug。
+   */
+  const footerTopMm = Math.min(Math.max(bottomAnchoredMm, loopFloorMm), footerCeilMm)
 
   return {
     contentWMm,
@@ -1160,6 +1192,11 @@ export interface EditorApi {
    * （字段在 `TemplateDoc.bands.loop` 里），混进 pageSetup 会造出第二个存放位置。
    */
   setLoopOffset(mm: number): void
+  /**
+   * 表头区 / 表尾区是否**参与打印**（缺省启用）。
+   * 只影响打印与预览；画布上元素照旧显示、照旧可编辑（理由见实现处注释）。
+   */
+  setBandEnabled(band: 'header' | 'footer', on: boolean): void
 
   setPageSetup(patch: Partial<PageSetup>): void
   replaceDoc(next: TemplateDoc): void
@@ -1369,6 +1406,26 @@ export function useEditorState({ doc, onChange, fields = [], onEscape }: UseEdit
     [commit],
   )
 
+  /**
+   * 表头区 / 表尾区的**启用开关**（2026-09-23 第二次反馈：「表头区和表尾区在侧边属性中选择开启或者关闭」）。
+   *
+   * 关掉 = **只影响打印/预览**（`pipeline.ts` 把该区元素换成空数组就够了：
+   * 没有 header 块 ⇒ `headerReserve = 0`；没有 footer 块 ⇒ 正文下界回到版心下界）。
+   * ⚠️ **画布上元素仍然在、仍然可编辑** —— 一关就从画布上抹掉的话，用户就没法"先把元素摆好、
+   * 再决定要不要打印"了。
+   */
+  const setBandEnabled = useCallback(
+    (band: 'header' | 'footer', on: boolean) => {
+      const cur = docRef.current
+      // 缺省（undefined）= 启用 ⇒ 与 true 等价，所以这里不能简单比 `=== on`
+      if ((cur.bands[band === 'header' ? 'headerEnabled' : 'footerEnabled'] !== false) === on) return
+      const bands =
+        band === 'header' ? { ...cur.bands, headerEnabled: on } : { ...cur.bands, footerEnabled: on }
+      commit({ ...cur, bands })
+    },
+    [commit],
+  )
+
   const selectedIdRef = useRef(selectedId)
   selectedIdRef.current = selectedId
 
@@ -1563,7 +1620,16 @@ export function useEditorState({ doc, onChange, fields = [], onEscape }: UseEdit
         return
       }
       if (e.key === 'Escape') {
-        // 先给"层级上移"一次机会（单元格 → 整表），没人接手才清空选中
+        /*
+         * ⚠️ `defaultPrevented` 这道闸门是 2026-09-23 加的（真机反馈第 5 条）。
+         *
+         * Esc 现在由**唯一的仲裁链**驱动：全屏浮层 `EditorOverlay` 在**捕获阶段**
+         * 先行判定（预览 → 节点 → 单元格 → 表格编辑态 → 元素选中），接管了就 `preventDefault`。
+         * 这里是"没有浮层时"的兜底。少了这道判断，一次按 Esc 会被处理两遍 ——
+         * 用户看到的是"预览关了，编辑器也跟着缩回小尺寸"。
+         */
+        if (e.defaultPrevented) return
+        // 先给"层级上移"一次机会，没人接手才清空选中
         if (onEscapeRef.current?.()) return
         setSelectedId(null)
       }
@@ -1634,6 +1700,7 @@ export function useEditorState({ doc, onChange, fields = [], onEscape }: UseEdit
     removeElement,
     setElementBand,
     setLoopOffset,
+    setBandEnabled,
     setPageSetup,
     replaceDoc,
     copyElement,

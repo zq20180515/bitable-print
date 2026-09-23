@@ -171,11 +171,29 @@ function reservedHeight(blocks: MeasuredBlock[]): number {
 // ============================================================
 
 export function paginate(input: LayoutInput): LayoutResult {
-  const contentH = Math.max(0, finite(input.contentHeightMm))
+  /**
+   * 版心高度（纸张可打印区）。
+   * ⚠️ 它**不等于正文可用下界**了 —— 正文下界见下面重新定义的 `contentH`。
+   */
+  const pageH = Math.max(0, finite(input.contentHeightMm))
   const headerBlocks = input.headerBlocks ?? []
   const footerBlocks = input.footerBlocks ?? []
   const headerReserve = reservedHeight(headerBlocks)
   const footerReserve = reservedHeight(footerBlocks)
+  /**
+   * 表尾区（页脚）的顶边 —— 从版心**底部往上量** `footerReserve`。
+   *
+   * ⚠️ 表尾区自 2026-09-23 起**每页都渲染**（见 `startPage`），不再是"最后一页的事"。
+   */
+  const footerTopH = Math.max(0, pageH - footerReserve)
+  /**
+   * **正文可用下界**。
+   *
+   * ⚠️ 名字沿用 `contentH` 是**刻意的**：下面正文分页的每一处判据（"这一排放不放得下"）
+   * 读的都是这个名字，重新定义它之后，那些判据**一个字都不用改**就自动变成"在页脚上方断页"。
+   * 有页脚时 = 页脚顶边；没有页脚时 = 版心下界（与老行为**逐字节一致**）。
+   */
+  const contentH = footerBlocks.length > 0 ? footerTopH : pageH
   const warnings: RenderWarning[] = []
 
   const pages: PageModel[] = []
@@ -191,6 +209,15 @@ export function paginate(input: LayoutInput): LayoutResult {
     pages.push(p)
     // 循环区之外的重复区内容：每页克隆一份（PRD F2-29）
     for (const b of headerBlocks) p.blocks.push(placeBlock(b, b.xMm, b.yMm))
+    /*
+     * ⚠️ 表尾区**也每页克隆**（2026-09-23 第二次反馈第 2 条）。
+     *
+     * 它原来只在最后一页渲染（那段代码在 `paginate` 末尾），用户的原话是
+     * 「表尾区的元素只会出现在最后一页」—— 他要的是与表头区**对称**的页脚。
+     * 现在两区共用这一处克隆点，`paginate` 里不再有"最后一页专属"的分支。
+     * 位置从版心底部往上量（`footerTopH + b.yMm`），与画布和 `buildDocumentHtml` 的坐标一致。
+     */
+    for (const b of footerBlocks) p.blocks.push(placeBlock(b, b.xMm, footerTopH + b.yMm))
     page = p
     cursorY = headerReserve
     usedBottom = headerReserve
@@ -529,16 +556,14 @@ export function paginate(input: LayoutInput): LayoutResult {
     if (rows.length === 0) markRecord(page, g.recordIndex)
   }
 
-  // ---- 表尾区：仅最后一页；放不下就单独占一页 ----
-  if (footerBlocks.length > 0) {
-    if (hasContent && usedBottom + footerReserve > contentH + PAGE_EPS) {
-      startPage()
-    }
-    if (pages.length === 0) startPage()
-    const top = Math.max(0, contentH - footerReserve)
-    for (const b of footerBlocks) page.blocks.push(placeBlock(b, b.xMm, top + b.yMm))
-    hasContent = true
-  }
+  /*
+   * ---- 表尾区：已经在 `startPage()` 里**每页克隆**了 ----
+   *
+   * ⚠️ 这里原来有一段"仅最后一页 + 放不下就单独占一页"的逻辑，2026-09-23 第二次反馈第 2 条
+   * 把表尾区改成与表头区对称之后删掉了。留这条注释是因为它曾是"表尾为什么只在最后一页"的
+   * 唯一线索。`footerReserve` 仍然在用 —— 它决定正文的可用下界（见上面 `contentH` 的重新定义）。
+   */
+  if (pages.length === 0) startPage()
 
   if (pages.length === 0) startPage()
 

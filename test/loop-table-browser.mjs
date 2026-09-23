@@ -359,7 +359,7 @@ async function pointInside(cdp, selectorExpr) {
 
 /**
  * 在画布上选出"循环区那张表格"，并确认属性面板里出现了可用的
- * 「多记录并成一张大表」开关。
+ * 「连续打印」开关。
  *
  * 判定标准是"面板里出现该开关且 disabled=false"（= 循环区唯一元素，正是渲染层
  * mergedLoopTableOf 的生效条件），所以这个函数同时也在验证"我点的确实是那张表"。
@@ -391,7 +391,7 @@ async function selectLoopTable(cdp) {
     // 没这一步就是等一个不会出现的开关。
     await waitFor(
       cdp,
-      `document.querySelector('.bp-crumb__link') != null || document.querySelector('button[aria-label="多记录并成一张大表"]') != null`,
+      `document.querySelector('.bp-crumb__link') != null || document.querySelector('button[aria-label="连续打印"]') != null`,
       8000,
       `第 ${i + 1} 张表的属性面板`,
     )
@@ -399,7 +399,7 @@ async function selectLoopTable(cdp) {
     await cdp.eval(`(() => { const b = document.querySelector('.bp-crumb__link'); if (b) b.click(); return true; })()`)
     await sleep(300)
     const st = await cdp.eval(`(() => {
-      const s = document.querySelector('button[aria-label="多记录并成一张大表"]');
+      const s = document.querySelector('button[aria-label="连续打印"]');
       const hints = Array.from(document.querySelectorAll('.bp-hint')).map(function (e) { return (e.textContent || '').trim(); });
       return {
         has: !!s,
@@ -900,8 +900,8 @@ async function main() {
     }
 
     // ------------------------------------------------------------
-    // 对照 A：同一模板，把「多记录并成一张大表」关掉
-    console.log('\n[6] 对照 A：关掉「多记录并成一张大表」→ 必须回到每条记录一张小表')
+    // 对照 A：同一模板，把「连续打印」关掉
+    console.log('\n[6] 对照 A：关掉「连续打印」→ 必须回到每条记录一张小表')
     await gotoStep0(cdp)
     await gotoStep1(cdp)
     // 从模板列表重新进编辑器
@@ -910,19 +910,19 @@ async function main() {
 
     const found = await selectLoopTable(cdp)
     ok(
-      '属性面板出现「多记录并成一张大表」开关、且作用在循环区那张表上',
+      '属性面板出现「连续打印」开关、且作用在循环区那张表上',
       !!found && found.checked === 'true' && found.disabled === false,
       found
         ? `画布 ${found.total} 张表，第 ${found.index + 1} 张命中；aria-checked=${found.checked} disabled=${found.disabled}`
         : '未找到可用的开关',
     )
     observe('开关旁的说明文案', String(found?.hint))
-    if (!found) throw new Error('对照 A 失败：找不到循环区表格的「多记录并成一张大表」开关')
+    if (!found) throw new Error('对照 A 失败：找不到循环区表格的「连续打印」开关')
 
-    await tap(cdp, `document.querySelector('button[aria-label="多记录并成一张大表"]')`)
+    await tap(cdp, `document.querySelector('button[aria-label="连续打印"]')`)
     await sleep(350)
     const after = await cdp.eval(
-      `(document.querySelector('button[aria-label="多记录并成一张大表"]') || {}).getAttribute ? document.querySelector('button[aria-label="多记录并成一张大表"]').getAttribute('aria-checked') : null`,
+      `(document.querySelector('button[aria-label="连续打印"]') || {}).getAttribute ? document.querySelector('button[aria-label="连续打印"]').getAttribute('aria-checked') : null`,
     )
     ok('开关已切换为关闭', after === 'false', `aria-checked=${after}`)
 
@@ -969,7 +969,7 @@ async function main() {
     ok('选中循环区表格（开关仍可用）', !!found2 && found2.disabled === false, found2 ? `checked=${found2.checked}` : '未找到')
     if (!found2) throw new Error('F2-29 补测失败：找不到循环区表格')
     if (found2.checked === 'false') {
-      await tap(cdp, `document.querySelector('button[aria-label="多记录并成一张大表"]')`)
+      await tap(cdp, `document.querySelector('button[aria-label="连续打印"]')`)
       await sleep(300)
     }
     for (let i = 0; i < 3; i++) {
@@ -984,7 +984,7 @@ async function main() {
       const on = (l) => { const b = document.querySelector('button[aria-label="' + l + '"]'); return b ? b.getAttribute('aria-checked') : null; };
       const p = Array.from(document.querySelectorAll('.bp-hint')).map(function (e) { return (e.textContent || '').trim(); })
         .find(function (h) { return h.startsWith('当前 ') && h.includes(' 行 × '); });
-      return { merge: on('多记录并成一张大表'), header: on('首行作为表头'), repeat: on('表头每页重复'), shape: p };
+      return { merge: on('连续打印'), header: on('首行作为表头'), repeat: on('表头每页重复'), shape: p };
     })()`)
     observe('改造后的表格形状', JSON.stringify(shape))
     ok(

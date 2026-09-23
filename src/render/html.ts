@@ -13,14 +13,12 @@
 
 import { resolveCellEdges } from '../components/editor/table-actions'
 /*
- * 格内子元素的尺寸口径（`w` = 占格宽百分比、`h` = 固定盒高）。
- *
- * ⚠️ 又是一处**跨层引用**（渲染层 → 编辑器层），与上面 `resolveCellEdges` 同一个理由：
- *    "格内元素占多宽"这条口径必须**只有一个来源**，画布与打印各写一份就一定会分叉
- *    （本项目已经栽过三次）。`cell-child.ts` 只依赖 `lib/types` 与 `doc-bands`，
- *    运行时零 React 依赖，因此可以被渲染层（Node 单测直接加载）安全引用。
+ * ⚠️ 格内子元素的尺寸口径（`w` = 占格宽百分比、`h` = 固定盒高）**不再从
+ *    `components/editor/cell-child` 引** —— 那条"渲染层 → 编辑器层"的跨层引用已于
+ *    2026-09-23 收口到 `lib/cell-geometry.ts`（见下面那处 import 的说明）。
+ *    上面 `resolveCellEdges` 这一处跨层引用**暂时保留**（挪它成本大于收益），
+ *    但方向是同一个毛病：渲染引擎不该依赖 UI 层。
  */
-import { childHeightMm, childWidthPct } from '../components/editor/cell-child'
 import type {
   AnyElement,
   AttachmentPrintConfig,
@@ -45,6 +43,11 @@ import {
 } from '../lib/types'
 import type { RecordItem } from '../lib/data-source'
 import { fieldMeta, formatDateTime, isImageAttachment, isVectorImage, renderCellValue } from '../lib/field-types'
+/*
+ * 格内子元素的尺寸口径 —— 与画布（`components/editor/cell-child.ts`）**共用同一份实现**。
+ * 下沉到 `lib/` 就是为了让渲染引擎可以引用它，而不必反向 import UI 层。
+ */
+import { childBoxWidthMm, childHeightMm, childWidthPct } from '../lib/cell-geometry'
 import type { PageModel, RenderContext, RenderWarning, ResolvedImage } from './context'
 import { imageKey } from './context'
 import { barcodeSvg, isCode128Encodable, qrCodeSvg, QR_MAX_BYTES, utf8ByteLength } from './code-elements'
@@ -916,7 +919,23 @@ function attachmentItemsFor(fieldId: string | null, scope: RenderScope, ctx: Ren
   })
 }
 
-function renderCellContent(cell: TableCell, scope: RenderScope, ctx: RenderContext, warnings: RenderWarning[]): string {
+function renderCellContent(
+  cell: TableCell,
+  scope: RenderScope,
+  ctx: RenderContext,
+  warnings: RenderWarning[],
+  /**
+   * 这一格**内容区**的宽度（mm）= 列宽（含 colspan）− 左右内边距。
+   *
+   * ⚠️ 必须由调用方传进来，**不能**从 `scope.widthMm` 推 —— 那是**表格**的宽度
+   * （`pipeline.ts` 的 `scopeOfRecord` 给的就是表宽）。而格内子元素的宽度百分比、
+   * 附件/图片的"适配容器"、二维码的边长，全都以**格子**为容器算。
+   * 拿表宽当容器就会出现（2026-09-23 真机反馈第 1 / 2 条）：
+   *   · 一张附件图横向撑满整张表、竖向按比例长到覆盖整个页面；
+   *   · 二维码被画成表宽那么大，溢出格子后被裁掉 ⇒ 用户看到的是"完全不显示"。
+   */
+  cellWidthMm: number,
+): string {
   /*
    * ⚠️ 单元格里的**块级子元素**（`TableCell.children`，规格 六）必须在这里渲染 ——
    *    2026-09-22 真机反馈时才发现：`children` 只在画布上画了，**打印端整块被忽略**
@@ -926,7 +945,22 @@ function renderCellContent(cell: TableCell, scope: RenderScope, ctx: RenderConte
    */
   const childHtml = (cell.children ?? [])
     .map((child) => {
-      const r = renderElement(child, scope, ctx)
+      /*
+       * ⚠️ 每个子元素单独造一个 scope：把 `widthMm` / `heightMm` 换成**它在格子里的实际尺寸**。
+       *
+       * `renderElement` 的每个分支都是从 scope 推导尺寸的：`renderImage` 取 `widthMm`、
+       * `layoutAttachmentGroup` 拿 `widthMm` 当容器宽、`renderQrCode` / `renderBarcode`
+       * 用 `widthMm` / `heightMm` 定码的大小。自由层那边由 `pipeline.buildBlocks` 填
+       * "元素自己的 w×h"；格内就得填"格内口径的 w×h"—— 两边**语义相同、来源不同**。
+       * 少了这一步，格内的东西就会按表的尺寸渲染（就是上面签名注释里那两个症状）。
+       */
+      const childScope: RenderScope = {
+        ...scope,
+        widthMm: childBoxWidthMm(child, cellWidthMm),
+        // 格内没有"固定行高"这回事（行高由内容撑），所以不给高度 —— 高度约束在格内不适用
+        heightMm: childHeightMm(child) ?? undefined,
+      }
+      const r = renderElement(child, childScope, ctx)
       warnings.push(...r.warnings)
       /*
        * 外层盒子承载 `w`（占格宽百分比）与 `h`（固定盒高）—— 与画布**同一套口径**
@@ -959,7 +993,17 @@ function renderCellContent(cell: TableCell, scope: RenderScope, ctx: RenderConte
     }
     const fieldId = resolveCellAttachmentFieldId(cell, ctx)
     const items = attachmentItemsFor(fieldId, scope, ctx)
-    const res = layoutAttachmentGroup(items, cell.attachment, scope.widthMm, scope)
+    /*
+     * 附件容器 = **这一格**的宽度（不是表宽）。同时把 `heightMm` 清掉：
+     * 格内行高由内容撑，拿"表高"去约束高度会把整格的图压成一条缝。
+     * 于是格内附件的口径是"**宽度适配格子、高度等比**" —— 正是用户对
+     * 「自适应单元格」的预期（2026-09-23 真机反馈第 1 条）。
+     */
+    const res = layoutAttachmentGroup(items, cell.attachment, cellWidthMm, {
+      ...scope,
+      widthMm: cellWidthMm,
+      heightMm: undefined,
+    })
     warnings.push(...res.warnings)
     return childHtml + res.html
   }
@@ -1117,7 +1161,18 @@ function buildTableHtml(
         const span = cell.colspan > 1 ? ` colspan="${Math.floor(cell.colspan)}"` : ''
         const rspan = cell.rowspan > 1 ? ` rowspan="${Math.floor(cell.rowspan)}"` : ''
         const padMm = Math.max(0, finite(cell.paddingMm, paddingMm))
-        const inner = renderCellContent(cell, rowScope, ctx, warnings)
+        /*
+         * 该格**内容区**宽度 = 从 `colCursor` 起、跨 `colspan` 列的列宽之和 − 左右内边距。
+         *
+         * ⚠️ 必须从 `colCursor` 累加，**不要**拿"数组下标"当列号：跨列合并的格子在
+         * `row.cells` 里只是一个元素，数组下标 ≠ 网格列号（`table-actions.ts` 的
+         * `cellWidthMm` 已经为同一个理由写过一次）。越界时按 0 累加，
+         * 退化成"很窄"而不是 NaN —— 那种模板本来就命中 `table-column-mismatch` 告警。
+         */
+        const cellSpan = Math.max(1, Math.floor(finite(cell.colspan, 1)))
+        let cellW = 0
+        for (let k = 0; k < cellSpan; k++) cellW += widths[colCursor + k] ?? 0
+        const inner = renderCellContent(cell, rowScope, ctx, warnings, Math.max(1, cellW - padMm * 2))
         const bg = cell.style?.background ? `background:${cell.style.background};` : ''
         const cw = (cell.borders?.widthPt ?? borderW)
         const cc = cell.borders?.color ?? borderColor

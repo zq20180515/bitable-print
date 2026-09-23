@@ -176,6 +176,14 @@ export interface EditorShellProps {
   onDirtyChange?(dirty: boolean): void
   /** 模板类型，仅用于提示文案 */
   kind?: TemplateKind
+  /**
+   * 把 Esc 的**仲裁链**交给宿主浮层（2026-09-23 真机反馈第 5 条）。
+   *
+   * 方向是**子 → 父**：Esc 的监听器挂在浮层（`EditorOverlay`）上，而"能退哪一层"的状态
+   * 全在 shell 里 ⇒ 由 shell 注册上去。返回 `true` = 这一层把 Esc 用掉了
+   * （关预览 / 退表格编辑态 / 取消选中），浮层就**不能**再走"关掉编辑器"那条路。
+   */
+  onEscapeLayerReady?(fn: (() => boolean) | null): void
 }
 
 export function EditorShell({
@@ -191,6 +199,7 @@ export function EditorShell({
   onDirtyChange,
   busy = false,
   kind = 'view',
+  onEscapeLayerReady,
 }: EditorShellProps) {
   /** 供 useEditorState 的 Esc 处理器读取"当前是否停在单元格级"，避免闭包捕获陈旧值 */
   const selectedCellRef = useRef<string | null>(null)
@@ -201,27 +210,38 @@ export function EditorShell({
    * 一次退一整层是用户在"改细一层又改错了"时最想按的键。
    */
   const selectedNodeRef = useRef<NodeRef | null>(null)
+  /**
+   * Esc 仲裁链的**唯一实现**见下面的 `escapeStep`。
+   *
+   * ⚠️ 这里用 ref 转发而不是直接写实现：`escapeStep` 要读 `api`（`selectedId`）与 `preview`，
+   * 而它们都在后面才定义；`useEditorState` 又需要 `onEscape` —— 先有鸡还是先有蛋，
+   * 只能靠 ref 把环打破。
+   */
+  const escapeStepRef = useRef<(() => boolean) | null>(null)
   const api = useEditorState({
     doc,
     onChange,
     fields,
     /**
-     * Esc 的层级语义：有选中单元格时先退回整表，没有才取消选中整个元素。
-     * 之所以要在这里插一手：useEditorState 的默认行为是"Esc = 取消选中"，
-     * 而用户在单元格里按 Esc 期望的是"退一级"，直接丢选中会让人以为编辑状态坏了。
+     * Esc 的层级语义：**逐级退**（预览 → 节点 → 单元格 → 表格编辑态 → 元素选中）。
+     * 一次退一整层，是用户在"改细一层又改错了"时最想按的键。
      */
-    onEscape: () => {
-      if (selectedNodeRef.current) {
-        selectedNodeRef.current = null
-        setSelectedNode(null)
-        return true
-      }
-      if (!selectedCellRef.current) return false
-      selectedCellRef.current = null
-      setSelectedCellId(null)
-      return true
-    },
+    onEscape: () => escapeStepRef.current?.() ?? false,
   })
+  /** `api` 的 ref 镜像：`escapeStep` 要读 `selectedId`、要调 `select(null)` */
+  const apiRef = useRef<ReturnType<typeof useEditorState> | null>(null)
+  apiRef.current = api
+  /**
+   * 画布注册上来的"退出表格编辑态"。
+   *
+   * `editTableId` 是画布内部状态（见 `CanvasProps.onExposeExitEdit` 的说明）——
+   * 与其为它做一次受控 prop 提升（会牵动画布里 3 处用法），不如让画布把
+   * "当前怎么退出去"注册上来。
+   */
+  const exitCanvasEditRef = useRef<(() => boolean) | null>(null)
+  const registerExitCanvasEdit = useRef((fn: (() => boolean) | null): void => {
+    exitCanvasEditRef.current = fn
+  }).current
   // null = 面板收起，把整屏让给画布（窄侧栏里这个动作很常用）
   const [tab, setTab] = useState<DrawerTab | null>('fields')
   const [layout, setLayout] = useState<LayoutMode>('narrow')
@@ -250,6 +270,56 @@ export function EditorShell({
     busy: string | null
   }>({ open: false, result: null, error: null, busy: null })
   const previewAbort = useRef<AbortController | null>(null)
+
+  /**
+   * Esc 的**唯一仲裁链**（2026-09-23 真机反馈第 5 条）。
+   *
+   * 用户原话：「全屏画布下，预览时，按 Esc 会直接缩回小尺寸页面，优化一下，
+   * 按 Esc 是退出预览，但不是退出全屏；画布编辑下，按 Esc 是退出编辑，不是退出大屏」。
+   *
+   * 语义 = **逐级退一层**：从最上层往下问，谁先接住就到此为止。
+   *
+   *   ① 预览浮层      → 关预览
+   *   ② 字段 / 变量节点 → 退回元素级
+   *   ③ 单元格        → 退回整表
+   *   ④ 表格编辑态     → 退出编辑（画布注册上来的）
+   *   ⑤ 元素选中      → 取消选中
+   *
+   * 全都没得退才返回 `false` —— 这时浮层才会走"关掉编辑器"（有改动先问一句）。
+   *
+   * ⚠️ 返回值必须**如实**：`true` 就是在告诉浮层"别再往下退了"。
+   * ⚠️ 两个消费方共用它：`EditorOverlay` 的捕获阶段监听器（主路径）与
+   *    `useEditorState` 的冒泡阶段兜底（没有浮层时）。
+   */
+  const escapeStep = useCallback((): boolean => {
+    if (preview.open) {
+      setPreview((s) => (s.open ? { ...s, open: false } : s))
+      return true
+    }
+    if (selectedNodeRef.current) {
+      selectedNodeRef.current = null
+      setSelectedNode(null)
+      return true
+    }
+    if (selectedCellRef.current) {
+      selectedCellRef.current = null
+      setSelectedCellId(null)
+      return true
+    }
+    if (exitCanvasEditRef.current?.()) return true
+    if (apiRef.current?.selectedId) {
+      apiRef.current.select(null)
+      return true
+    }
+    return false
+  }, [preview.open])
+  /** 供 `useEditorState` 的兜底处理器调用（见上面 `onEscape`） */
+  escapeStepRef.current = escapeStep
+  /** 把仲裁链注册给宿主浮层 —— 它要在捕获阶段先问一遍 */
+  useEffect(() => {
+    onEscapeLayerReady?.(escapeStep)
+    return () => onEscapeLayerReady?.(null)
+  }, [onEscapeLayerReady, escapeStep])
   /**
    * "待确认的合并"。
    *
@@ -880,9 +950,13 @@ export function EditorShell({
    * 里，而用户是"拖一张表进循环区"——他不会想到还要去某个面板里再勾一下；
    * 而他看到的结果（一记录一张表，标题行刷 5 遍）显然不是他要的。
    *
-   * 三个**同时满足**才开（与渲染层 `mergedLoopTableOf` 的生效条件完全一致，不满足就别乱声明）：
-   *   ① 载荷是表格；② 落在**循环区**；③ 循环区**除了它没有别的元素**（否则渲染层会出警告）；
+   * 四个**同时满足**才开（这只是"给个合理默认值"，用户随时可在表格属性面板里改）：
+   *   ① 载荷是表格；② 落在**循环区**；③ 插入时循环区**还是空的**（= 它插进去后就是唯一那张表）；
    *   ④ 模板是**视图模板**（记录模板"一条一份"本来就该一记录一张表）。
+   *
+   * ⚠️ 2026-09-23 第 7 条放宽之后，「循环区恰好一个元素」**不再是渲染层的前提** ——
+   * 表格下方还有别的元素时，渲染层照样会铺成连续大表（那些元素只按第一条记录渲染一次）。
+   * 这里保留条件 ③ 只是因为"用户刚拖进来的第一张表"开合并最符合直觉，不是因为渲染层要求它。
    */
   const withViewMergedTable = useCallback<(el: AnyElement, band: BandKey) => AnyElement>(
     (el, band) =>
@@ -1179,6 +1253,7 @@ export function EditorShell({
       defaultTextStyle={defaultTextStyle}
       onPageSetup={api.setPageSetup}
       onSetLoopOffset={api.setLoopOffset}
+      onSetBandEnabled={api.setBandEnabled}
       onDefaultTextStyle={(p) => setDefaultTextStyle((s) => ({ ...s, ...p }))}
       onMerge={api.mergeElement}
       onRemove={api.removeElement}
@@ -1206,6 +1281,7 @@ export function EditorShell({
       defaultTextStyle={defaultTextStyle}
       onPageSetup={api.setPageSetup}
       onSetLoopOffset={api.setLoopOffset}
+      onSetBandEnabled={api.setBandEnabled}
       onDefaultTextStyle={(p) => setDefaultTextStyle((s) => ({ ...s, ...p }))}
       onMerge={api.mergeElement}
       onRemove={api.removeElement}
@@ -1460,6 +1536,7 @@ export function EditorShell({
         {/* ---- 工具行：文本编辑 + 纸张/方向 + 页面设置 + 在此页预览打印效果 + 撤销/重做 ---- */}
         <Toolbar
           doc={doc}
+          kind={kind}
           nodeTarget={nodeTarget}
           selected={api.selected}
           selectedCellId={selectedCellId}
@@ -1645,6 +1722,8 @@ export function EditorShell({
             newTableId={newTableId}
             onCloseTableSize={() => setNewTableId(null)}
             onOpenTableSize={(tableId) => setNewTableId(tableId)}
+            /* 画布把"退出表格编辑态"注册上来，供 Esc 仲裁链的第 ④ 层使用 */
+            onExposeExitEdit={registerExitCanvasEdit}
             onDropTargetChange={setDropTarget}
             onResizeTable={(tableId, rows, cols) => {
               const f = findElement(doc, tableId)

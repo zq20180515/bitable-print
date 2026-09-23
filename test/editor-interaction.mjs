@@ -1188,11 +1188,11 @@ async function main() {
     )
 
     // ------------------------------------------------------------------
-    console.log('\n[10] 三个 UI 缺口（新增）：多记录并成一张大表 / 「每 N 条」与连续大表冲突 / 循环区标签说明')
+    console.log('\n[10] 三个 UI 缺口（新增）：连续打印 / 「每 N 条」与连续大表冲突 / 循环区标签说明')
     {
       // ============================================================
       // 反向对照①：记录模板（通用单据）的循环区里有十几个元素。
-      // 这种模板**开不了**「多记录并成一张大表」（它与其它循环元素的相对位置无法定义）。
+      // 这种模板**开不了**「连续打印」（它与其它循环元素的相对位置无法定义）。
       // 要求是"就地写清原因"，而不是把开关藏起来或静默禁用 —— 静默禁用用户只会以为坏了。
       // ============================================================
       // ⚠️ 直接按 kind 点表格会先落到"单元格层"，面板是「单元格属性」——那一层根本没有这个开关。
@@ -1202,8 +1202,8 @@ async function main() {
         ok('能在画布上选中循环区里的表格元素（下面四条断言的前提）', false, '没有任何表格落在循环区')
       } else {
         note('选中的是循环区里的表格', recTable.id)
-        const stRec = await cdp.eval(`__bp.switchState('多记录并成一张大表')`)
-        note('记录模板里「多记录并成一张大表」开关的状态', stRec)
+        const stRec = await cdp.eval(`__bp.switchState('连续打印')`)
+        note('记录模板里「连续打印」开关的状态', stRec)
         ok('记录模板（循环区有多个元素）→ 开关**仍在面板上**，只是禁用（不静默隐藏、不点了没反应）',
           stRec?.found === true && stRec?.role === 'switch' && stRec?.disabled === true,
           JSON.stringify(stRec))
@@ -1256,7 +1256,7 @@ async function main() {
         if (!viewTable) {
           ok('能选中「通用清单」循环区里那张表格', false, '没有任何表格落在循环区')
         } else {
-          const stView = await cdp.eval(`__bp.switchState('多记录并成一张大表')`)
+          const stView = await cdp.eval(`__bp.switchState('连续打印')`)
           note('视图模板里该开关的状态', stView)
           ok('循环区只有这一张表 → 开关**可用**，且默认打开（读的是骨架落进 doc 的 true）',
             stView?.found === true && stView?.disabled === false && stView?.checked === true,
@@ -1268,9 +1268,9 @@ async function main() {
             `循环区标签说明「${hintOn}」`)
 
           // 关掉开关 → 说明立刻退回旧文案。这一步同时证明"这个开关真的在改文档"，不是摆着好看的。
-          const offRes = await cdp.eval(`__bp.clickSwitch('多记录并成一张大表')`)
+          const offRes = await cdp.eval(`__bp.clickSwitch('连续打印')`)
           await sleep(500)
-          const stOff = await cdp.eval(`__bp.switchState('多记录并成一张大表')`)
+          const stOff = await cdp.eval(`__bp.switchState('连续打印')`)
           const hintOff = await cdp.eval(`__bp.bandHint('loop')`)
           note('关掉开关后', { click: offRes, state: stOff, hint: hintOff })
           ok('关掉开关 → 开关状态跟着变，循环区标签说明立刻退回"按数据行重复"（说明开关真的写进了 doc）',
@@ -1302,16 +1302,16 @@ async function main() {
           await waitFor(cdp, `__bp.count('.bp-el') > 0`, 9000)
           await cdp.eval(HELPERS)
           const backTable = await selectInBand(cdp, 'table', '循环区')
-          const stBack = await cdp.eval(`__bp.switchState('多记录并成一张大表')`)
+          const stBack = await cdp.eval(`__bp.switchState('连续打印')`)
           if (!backTable) {
             ok('从模板卡片重新进入编辑器并选中循环区那张表', false, `入口=${JSON.stringify(menuPick)}`)
           } else {
             ok('落库往返（关）：重新进入编辑器，开关读到的是上次落库的"关"（关掉的改动真的存进了 doc）',
               menuPick?.ok === true && stBack?.disabled === false && stBack?.checked === false,
               `入口=${JSON.stringify(menuPick)} 表格=${backTable.id} 状态=${JSON.stringify(stBack)}`)
-            const onRes = await cdp.eval(`__bp.clickSwitch('多记录并成一张大表')`)
+            const onRes = await cdp.eval(`__bp.clickSwitch('连续打印')`)
             await sleep(500)
-            const stOn = await cdp.eval(`__bp.switchState('多记录并成一张大表')`)
+            const stOn = await cdp.eval(`__bp.switchState('连续打印')`)
             ok('再点一次把它打开 → 开关变成"开"',
               onRes?.ok === true && stOn?.checked === true,
               `点击=${JSON.stringify(onRes)} 状态=${JSON.stringify(stOn)}`)
@@ -1343,7 +1343,7 @@ async function main() {
       // 分页时还会被 `max(y, 游标)` 兜一次底（render/layout.ts:343-345、:357、:360）。
       // 画布一度只加了页边距、没加这个偏移，于是「通用清单」的列头表（页级重复区）
       // 与数据表（循环区）在画布上完全叠在一起：循环区那张表既看不见，
-      // 也只能靠撒点采样才点得到 —— 刚做的「多记录并成一张大表」开关几乎不可达。
+      // 也只能靠撒点采样才点得到 —— 刚做的「连续打印」开关几乎不可达。
       //
       // 此刻向导停在第③步、手上是「通用清单」且开关是开的（上一节留下的状态）。
       // 从模板卡片重新进编辑器，走的是和用户一样的入口。
@@ -1411,9 +1411,9 @@ async function main() {
             bandNow === '循环区', `读数=${JSON.stringify(bandNow)}`)
 
           // ---- 断言 4：直着点进去之后，B1 那个开关就是可用的（缺陷的最终后果） ----
-          const stLoop = await cdp.eval(`__bp.switchState('多记录并成一张大表')`)
+          const stLoop = await cdp.eval(`__bp.switchState('连续打印')`)
           note('点中心选中后的开关状态', stLoop)
-          ok('选中循环区那张表后，「多记录并成一张大表」开关**可用**（直着点一下就能到，不必靠采样绕进去）',
+          ok('选中循环区那张表后，「连续打印」开关**可用**（直着点一下就能到，不必靠采样绕进去）',
             stLoop?.found === true && stLoop?.disabled === false,
             JSON.stringify(stLoop))
         }

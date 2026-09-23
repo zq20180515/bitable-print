@@ -157,6 +157,11 @@ export interface InspectorProps {
    * 会造出第二个存放位置（见 `EditorApi.setLoopOffset` 的注释）。
    */
   onSetLoopOffset?(mm: number): void
+  /**
+   * 表头区 / 表尾区是否**参与打印**（2026-09-23 第二次反馈：「在侧边属性中选择开启或者关闭」）。
+   * 关掉只影响打印与预览 —— 画布上元素照旧显示、照旧可编辑。
+   */
+  onSetBandEnabled?(band: 'header' | 'footer', on: boolean): void
   onDefaultTextStyle(patch: Partial<TextStyle>): void
   onMerge(id: string, patch: Partial<AnyElement>, mergeKey?: string): void
   onRemove(id: string): void
@@ -430,7 +435,7 @@ function NodePanel(props: InspectorProps & { selectedNode: NodeRef; node: Inline
  * （用户要求："页面的相关设置也放在这个按钮内"）。抄一份到顶栏 = 以后加一个页面字段，
  * 两个入口里只有一个有 —— 这正是"同一个规则两处各写一套"的老毛病。
  */
-export function PagePanel({ doc, layout, defaultTextStyle, onPageSetup, onDefaultTextStyle, onSetLoopOffset }: InspectorProps) {
+export function PagePanel({ doc, layout, defaultTextStyle, onPageSetup, onDefaultTextStyle, onSetLoopOffset, onSetBandEnabled }: InspectorProps) {
   const ps = doc.pageSetup
   const render = pageRenderSize(ps)
   const grid = gridOptions(ps)
@@ -591,9 +596,27 @@ export function PagePanel({ doc, layout, defaultTextStyle, onPageSetup, onDefaul
               onChange={(v) => onSetLoopOffset(v)}
             />
           </Field>
+          {onSetBandEnabled ? (
+            <>
+              <Field label="表头区" hint="关掉后该区元素不参与打印（画布上仍然可以编辑）">
+                <Switch
+                  checked={doc.bands.headerEnabled !== false}
+                  ariaLabel="表头区参与打印"
+                  onChange={(v) => onSetBandEnabled('header', v)}
+                />
+              </Field>
+              <Field label="表尾区" hint="关掉后该区元素不参与打印（画布上仍然可以编辑）">
+                <Switch
+                  checked={doc.bands.footerEnabled !== false}
+                  ariaLabel="表尾区参与打印"
+                  onChange={(v) => onSetBandEnabled('footer', v)}
+                />
+              </Field>
+            </>
+          ) : null}
           <p className="bp-hint">
-            循环区自动从表头区下面开始（高度自动）；表尾区贴版心底部。三个分区的范围在画布上都有虚线框；
-            表头区里的元素出不了这个高度，所以拖它不会推动别的分区。
+            循环区自动从表头区下面开始（高度自动）；**表头区与表尾区都每页重复**（相当于 Word 的页眉 / 页脚）。
+            三个分区的范围在画布上都有虚线框；表头区里的元素出不了这个高度，所以拖它不会推动别的分区。
           </p>
         </Section>
       ) : null}
@@ -986,16 +1009,35 @@ function TextAttrs(props: InspectorProps & { element: Extract<AnyElement, { kind
 function TableAttrs(props: InspectorProps & { element: TableElement }) {
   const { element } = props
   const cols = element.colWidthsMm.length
+  /**
+   * 有没有"标题行 / 标题列"。
+   *
+   * 第 8 条（2026-09-23）：「增加一个功能，设置了标题行或者列后，允许设置标题行或列跨页重新打印……
+   * 该功能仅在设置了标题行或者列后才可以勾选」。渲染层的 `tableRepeatHeader`（`render/html.ts`）
+   * 内部本来就有 `hasHeader && repeatHeader !== false` 这条闸门，这里只是让 **UI 也如实反映**它 ——
+   * 不然就是一个"勾了但打印出来没变化"的控件。
+   */
+  const hasHeaderAxis = element.rows[0]?.isHeader === true || element.headerCol === true
 
-  // 「多记录并成一张大表」的生效条件是三个合一，与渲染层（render/pipeline.ts 的 mergedLoopTableOf）
-  // 用同一把尺子：循环区恰好一个元素 + 该元素是这张表 + 它声明了 rowsFromRecords。
-  // 不满足时**不是一禁了之**：控件留着、禁用，并把原因写在下面 ——
-  // 静默禁用（或者干脆藏起来）只会让用户以为这个功能不存在 / 坏了。
+  /*
+   * 「多条记录排进同一张表」的判据必须与渲染层（`render/pipeline.ts` 的 `mergedLoopTableOf`）
+   * 是**同一把尺子**。
+   *
+   * ⚠️ 2026-09-23 第二次反馈第 7 条**砍掉了"循环区恰好一个元素"这条限制**。
+   * 那条限制的后果很隐蔽：表格下方一放东西，开关就变灰，用户既改不了、也看不出为什么，
+   * 于是把现象归因成「标题行没起作用」（他原话是"不论是否设置了标题行，只要表格下方无元素
+   * 就是台账、有元素就是一份份"—— 其实跟标题行毫无关系）。
+   *
+   * 现在只剩两条：**这张表在循环区里** + 循环区里**没有第二张也开了该选项的表**。
+   */
   const loopEls = props.doc.bands.loop?.elements ?? []
   const inLoop = loopEls.some((el) => el.id === element.id)
-  const rowsFromRecordsOk = inLoop && loopEls.length === 1
+  const otherDeclared = loopEls.some(
+    (el) => el.id !== element.id && el.kind === 'table' && el.rowsFromRecords === true,
+  )
+  const rowsFromRecordsOk = inLoop && !otherDeclared
   const rowsFromRecordsWhy = inLoop
-    ? '循环区里还有其它元素，这张表无法确定与它们的相对位置'
+    ? '循环区里已经有另一张表格开启了这一项 —— 两张表同时按记录铺行，无法确定先后'
     : '这张表不在循环区里，多记录铺行只在循环区生效'
 
   // ---- 结构动作：一律**薄转发**到 `./table-actions`（纯函数层）----
@@ -1055,19 +1097,29 @@ function TableAttrs(props: InspectorProps & { element: TableElement }) {
             }
           />
         </Field>
-        <Field label="表头重复" hint="表头行每页重复打印">
-          <Switch checked={!!element.repeatHeader} ariaLabel="表头每页重复" onChange={(v) => props.onMerge(element.id, { repeatHeader: v })} />
+        <Field label="表头重复" hint="表头行每页重复打印（需要先打开「表头行」或「表头列」）">
+          <Switch
+            checked={!!element.repeatHeader}
+            ariaLabel="表头每页重复"
+            disabled={!hasHeaderAxis}
+            onChange={(v) => props.onMerge(element.id, { repeatHeader: v })}
+          />
         </Field>
-        <Field label="多记录合并" hint="多记录并成一张大表：各条记录各占一行、表头只出一次">
+        <Field label="连续打印" hint="多条记录排进同一张表：各条记录各占一行、表头只出一次">
           <Switch
             checked={!!element.rowsFromRecords}
-            ariaLabel="多记录并成一张大表"
+            ariaLabel="连续打印"
             disabled={!rowsFromRecordsOk}
             onChange={(v) => props.onMerge(element.id, { rowsFromRecords: v })}
           />
         </Field>
         {rowsFromRecordsOk ? (
-          <p className="bp-hint">各条记录各占一行、表头只出一次。导出时按记录铺开；画布上仍按模板原样显示。</p>
+          <p className="bp-hint">
+            各条记录各占一行、表头只出一次。导出时按记录铺开；画布上仍按模板原样显示。
+            {loopEls.length > 1
+              ? '⚠️ 循环区里表格之外的其它元素只会按第一条记录渲染一次（排在表格下方）；想让它们每条记录都重复，请把那些元素移到「表尾区」。'
+              : ''}
+          </p>
         ) : (
           <p className="bp-hint">开关不生效：{rowsFromRecordsWhy}</p>
         )}

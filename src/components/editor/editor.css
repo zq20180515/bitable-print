@@ -3350,6 +3350,46 @@
   min-width: 0;
 }
 
+/* ============================================================
+   当前模式胶囊（2026-09-23 第 9 条）
+   ------------------------------------------------------------
+   「画布编辑页顶部，页面设置前面，用胶囊样式显示当前模板类型」。
+   刻意做成**只读**（不是按钮、不是下拉）：它是一句陈述，不是入口 ——
+   要改布局请去选中那张表 → 表格属性 → 「多记录合并」（title 里也这么写）。
+   所以没有 hover 高亮、没有 pointer 光标，避免用户以为是可点的。
+   ============================================================ */
+.bp-kindchip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(4px * var(--bp-inv, 1));
+  height: calc(24px * var(--bp-inv, 1));
+  padding: 0 calc(9px * var(--bp-inv, 1));
+  border-radius: 999px;
+  border: 1px solid var(--line, #e5e6eb);
+  background: var(--bg-2, #f5f6f7);
+  color: var(--text-2, #4e5969);
+  font-size: calc(11px * var(--bp-inv, 1));
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+  max-width: calc(180px * var(--bp-inv, 1));
+}
+
+.bp-kindchip__k {
+  color: var(--text-1, #1f2329);
+  font-weight: 600;
+}
+
+.bp-kindchip__dot {
+  color: var(--text-3, #86909c);
+}
+
+.bp-kindchip__v {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /*
  * 给"胶囊选择器"一个确定的宽度。
  *

@@ -29,7 +29,7 @@
  *   这样**不存在"点一下没反应、但文字变了"的中间态**。
  */
 
-import { useEffect, useLayoutEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { TemplateDoc, TemplateKind } from '../../lib/types'
 import type { FieldMeta } from '../../lib/data-source'
@@ -87,6 +87,15 @@ export interface EditorOverlayProps {
   /** 落库。**返回的 promise 会被容器 await**，别写成 `() => void commit()` */
   onDone(): EditorDoneResult | Promise<EditorDoneResult>
   onCancel(): void
+  /**
+   * `EditorShell` 把它的 **Esc 仲裁链**注册上来（2026-09-23 真机反馈第 5 条）。
+   *
+   * ⚠️ 方向是**子 → 父**：Esc 的监听器必须挂在浮层上（要先于编辑器那条冒泡处理器），
+   * 而"当前能退哪一层"的状态（预览 / 单元格 / 节点 / 表格编辑态 / 元素选中）全在
+   * `EditorShell` 里 ⇒ 只能让它把函数注册上来，浮层存进 ref 用。
+   * 传 `null` = 注销。
+   */
+  onEscapeLayerReady?(fn: (() => boolean) | null): void
   onRename(name: string): void
 }
 
@@ -113,12 +122,27 @@ export function EditorOverlay({
   onChange,
   onDone,
   onCancel,
+  onEscapeLayerReady,
   onRename,
 }: EditorOverlayProps) {
+  /**
+   * `EditorShell` 注册上来的 **Esc 仲裁链**（2026-09-23 真机反馈第 5 条）。
+   *
+   * 为什么是"子注册上来"而不是 props 传下来：Esc 的监听器必须挂在**浮层**上
+   * （它要早于编辑器那条冒泡处理器），而"现在能退哪一层"的状态全在 `EditorShell` 里。
+   *
+   * ⚠️ `registerEscapeLayer` 用 `useRef(...).current` 安装**一次**，不用 `useCallback`：
+   *    `EditorShell` 的 effect 依赖它，每次渲染换新函数会导致重复注册（无害但脏）。
+   */
+  const escapeLayerRef = useRef<(() => boolean) | null>(null)
+  const registerEscapeLayer = useRef((fn: (() => boolean) | null): void => {
+    escapeLayerRef.current = fn
+  }).current
   const [support] = useState<FullscreenSupport>(() => probeFullscreen())
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [confirmingClose, setConfirmingClose] = useState(false)
   const [fallbackMode, setFallbackMode] = useState<FallbackMode>('overlay')
+  /* Esc 与"退出真全屏"时的档位规则见下面 `onFullscreenChange` 里那段注释（不再需要"回档"用的 ref） */
   /**
    * 正在落库（2026-09-21）。
    *
@@ -156,8 +180,33 @@ export function EditorOverlay({
          * ⇒ 状态必须始终如实。文件选择那条链已经改成**单例 input**（见 `lib/file-pick.ts`），
          *   不必再怕"对话框期间重挂把 input 换掉"，所以这里不需要任何特殊照顾。
          */
+        /*
+         * ⚠️ **退出真全屏时不要一律收成小窗**（2026-09-23 真机反馈第 5 条）。
+         *
+         * 用户原话：「全屏画布下……按 Esc 会直接缩回小尺寸页面，优化一下，
+         * 按 Esc 是退出预览，但不是退出全屏」。
+         *
+         * 浏览器级真全屏里的 Esc 是 **UA 行为**（`preventDefault` 拦不住，这是规范保证的），
+         * 所以"按 Esc 完全不退出真全屏"物理上做不到。能做到的是：
+         * **退出真全屏之后不要缩回去** —— 回到进真全屏之前那一档（默认 = 盖满视口的 `overlay`）。
+         * 观感就是"画布纹丝不动"，而且 `isFull` 仍为 true ⇒ 顶部按钮仍是「缩小」，
+         * 不会退回 2026-09-20 那个"按钮文字与实际大小分叉"的毛病。
+         *
+         * 「真想缩小」只有一条路：点顶部按钮（`toggleFull` 里显式设 `inline`）。
+         */
+        /*
+         * ⚠️ 退出真全屏时**一律落到 `overlay`**（2026-09-23 第二次反馈，第 1 / 2 条）。
+         *
+         * 上一版写的是"回到进真全屏之前那一档"，看着合理，但在**按 Esc 退出真全屏**这条路上是错的：
+         * 用户若先点过「缩小」（档位 = `inline`）、再点「全屏」进真全屏，`preFsModeRef` 记下的
+         * 就是 `inline` ⇒ 一按 Esc 立刻缩回小窗。用户原话：「全屏预览状态，按 ESC……页面退回缩小状态」。
+         *
+         * Esc 的语义是"退一层编辑状态"，**不包括退大屏**。真要缩小只有一条路：
+         * 点顶部那个按钮（`toggleFull` 里显式设 `inline`）。
+         * 于是这里直接落到 `overlay` —— `isFull` 仍为 true ⇒ 画布铺满、按钮仍显示「缩小」，前后一致。
+         */
+        if (!fs) setFallbackMode('overlay')
         setIsFullscreen(fs)
-        if (!fs) setFallbackMode('inline')
       }),
     [],
   )
@@ -196,17 +245,43 @@ export function EditorOverlay({
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape') return
-      if (saving) return
-      if (document.fullscreenElement) return
-      if (!dirty) {
-        onCancel()
+      /*
+       * ⚠️ **先给编辑层一次机会**（2026-09-23 真机反馈第 5 条）。
+       *
+       * 顺序反了就是用户报的那个现象："全屏画布下，预览时按 Esc 会直接缩回小尺寸页面"。
+       * 这条监听器挂在**捕获阶段**（比编辑器的冒泡早），原来它一上来就判 `!dirty ⇒ onCancel()`，
+       * 于是预览还没关、编辑器先被关掉了。
+       *
+       * 现在 Esc 的语义是**逐级退**：预览 → 节点 → 单元格 → 表格编辑态 → 元素选中。
+       * 全都没得退时，才轮到"关掉编辑器"（下面那几条）。
+       */
+      if (escapeLayerRef.current?.()) {
+        e.preventDefault()
         return
       }
-      setConfirmingClose(true)
+      /*
+       * ⚠️ **没有任何一层可以退时，Esc 什么都不做**（2026-09-23 第二次反馈，第 1 / 2 条）。
+       *
+       * 原来这里会走 `!dirty ⇒ onCancel()`，也就是**把编辑器关掉**。用户看到的正是：
+       * 「在画布编辑状态，只要点击 ESC，页面都会缩小」，而且侧栏那个「全屏 / 缩小」按钮
+       * 还会显示成「全屏」（因为容器档被收成了 `inline`）—— 状态看起来是自相矛盾的。
+       *
+       * 现在**关编辑器只有一条路：点顶部的「返回 / 完成」**。
+       * Esc 只负责"逐级退一层"（预览 → 节点 → 单元格 → 表格编辑态 → 元素选中），
+       * 一层都没得退时就当它没被按过 —— 既不关编辑器，也不碰全屏档。
+       *
+       * 真全屏下的 Esc 是 **UA 行为**（`preventDefault` 拦不住），浏览器仍会退出全屏；
+       * 那一半由 `onFullscreenChange` 保持 `overlay` 档来兜住，观感上画布纹丝不动。
+       */
+      e.preventDefault()
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [dirty, onCancel, saving])
+    /*
+     * 依赖是空的：这条路只读一个 ref（`escapeLayerRef`），不闭包任何 state ——
+     * 留 `dirty` / `saving` 在这里只会让监听器被无谓地重绑。
+     */
+  }, [])
 
   /**
    * 切大小。
@@ -316,6 +391,8 @@ export function EditorOverlay({
         onDone={() => void finish()}
         onCancel={requestCancel}
         onRename={onRename}
+        /* Esc 仲裁链：由子组件注册上来 —— 浮层要在**捕获阶段**先问它有没有把 Esc 用掉 */
+        onEscapeLayerReady={registerEscapeLayer}
       />
     </div>
   )

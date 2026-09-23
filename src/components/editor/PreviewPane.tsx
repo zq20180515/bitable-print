@@ -34,17 +34,17 @@ export function PreviewPane({ result, error, busy, onClose }: Props) {
   const [contentH, setContentH] = useState(0)
   const [zoom, setZoom] = useState<'fit' | number>('fit')
 
-  // Esc 关闭：预览是覆盖层，用户的第一直觉就是按 Esc 退出
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
-  }, [onClose])
+  /*
+   * ⚠️ 预览**不再自己监听 Esc**（2026-09-23 真机反馈第 5 条）。
+   *
+   * 原实现在**捕获阶段**拦下 Esc 并 `stopPropagation()`。但同一个 `window` 上还挂着
+   * 全屏浮层的 Esc 处理器（也是捕获）和编辑器的（冒泡）—— `stopPropagation` **拦不住
+   * 同一目标上的其它监听器**（那需要 `stopImmediatePropagation`，且依赖注册顺序，太脆）。
+   * 于是三个处理器同时响应，用户看到的是「预览关了、编辑器也跟着缩回小尺寸」。
+   *
+   * 现在 Esc 全部由 `EditorShell` 的**唯一仲裁链**派发（预览是第一优先级），
+   * 这里只保留 `onClose` 供关闭按钮使用。
+   */
 
   useLayoutEffect(() => {
     const el = wrapRef.current

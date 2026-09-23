@@ -239,19 +239,23 @@ function isRowsFromRecordsTable(el: AnyElement): el is TableElement {
 /**
  * 判定能否走"一张连续大表"。
  *
- * 三个条件缺一不可（缺任何一个都退回原有的逐记录重复行为）：
- *   1. 循环区里**恰好只有一个元素** —— 否则这张表与其它循环元素的相对位置无法定义；
- *   2. 该元素是表格；
- *   3. 该表格声明了 `rowsFromRecords`。
+ * ⚠️ **2026-09-23 第二次反馈第 7 条：放宽了"循环区恰好一个元素"这条限制。**
  *
- * 另外要求**至少有一条记录**：一条记录都没有时，合并大表只会产出一份孤零零的表头，
- * 而现有行为是什么都不产出（表格行没有数据来源）。
+ * 用户原话：「表格下方**无**其他元素 ⇒ 打印出来是台账；表格下方**有**其他元素 ⇒ 打印出来是一份份单据。
+ * 不论是否设置了标题行……修复这个 BUG，应当能由用户决定」。
+ * 起因就是原来那条限制：循环区只要多一个元素就**退化成按记录重复**，
+ * 而 UI 侧的开关又因为同一条判据被禁用，用户**既改不了也看不出为什么**。
+ *
+ * 现在的判据只剩两条：
+ *   1. 循环区里**声明了 `rowsFromRecords` 的表格恰好一个**（多张同时铺行无法定义先后 ⇒ 退回并告警）；
+ *   2. 至少有一条记录（没有记录时合并只会产出孤零零一个表头）。
+ *
+ * 循环区里**其它元素**的处理见下面 `mergedTable` 分支：只按第一条记录渲染一次、排在表格之后。
  */
 function mergedLoopTableOf(loopElements: AnyElement[], recordCount: number): TableElement | null {
   if (recordCount <= 0) return null
-  if (loopElements.length !== 1) return null
-  const only = loopElements[0]
-  return isRowsFromRecordsTable(only) ? only : null
+  const declared = loopElements.filter(isRowsFromRecordsTable)
+  return declared.length === 1 ? declared[0] : null
 }
 
 /**
@@ -333,8 +337,16 @@ export async function renderDocument(input: PipelineInput): Promise<RenderedDoc>
   }
 
   const loopElements = doc.bands.loop?.elements ?? []
-  const headerElements = doc.bands.header ?? []
-  const footerElements = doc.bands.footer ?? []
+  /*
+   * 表头区 / 表尾区的**启用开关**（2026-09-23 第二次反馈：「表头区和表尾区在侧边属性中选择开启或者关闭」）。
+   *
+   * 缺省（字段不存在，含所有老模板）= 启用 ⇒ 行为逐字节不变。
+   * 关闭的做法就是"给渲染层一个空数组" —— 这样 `paginate` 那边一行都不用改：
+   * 没有 header 块 ⇒ `headerReserve = 0`；没有 footer 块 ⇒ 正文下界回到版心下界。
+   * ⚠️ 画布**不受影响**（元素还在、还能编辑），只有打印/预览跳过它们。
+   */
+  const headerElements = doc.bands.headerEnabled === false ? [] : (doc.bands.header ?? [])
+  const footerElements = doc.bands.footerEnabled === false ? [] : (doc.bands.footer ?? [])
   const firstRecord = records.length > 0 ? records[0] : null
   const lastRecord = records.length > 0 ? records[records.length - 1] : null
 
@@ -354,23 +366,36 @@ export async function renderDocument(input: PipelineInput): Promise<RenderedDoc>
     warnings,
   )
 
-  // 循环区起始位置 = max(每页重复区高度, loop.offsetMm)，避免两者叠加把内容推下去两次
+  /*
+   * 循环区起始位置（**绝对** mm，版心坐标系）。
+   *
+   * ⚠️ 必须是 `max(声明值, 表头块实测高度)`，**不能**写成 `max(0, 声明值 - 表头高度)`。
+   * 后者是 2026-09-23 真机反馈第 3 条（「拖动表头区的元素时，会带动循环区的元素移动」）
+   * 在渲染侧的同款毛病：表头内容一变，循环区就跟着上下跑。
+   * 而且它与 `el.y` 的语义对不上 —— `el.y` 是**相对循环区起点**的偏移，
+   * 那么起点本身就应该是这个绝对值。
+   *
+   * 画布侧 `Canvas.tsx` 的 `loopStartMm` 用的是**同一个公式**（把实测换成估算）。
+   * 两边一致 ⇒ 画布上摆在哪、打印就落在哪。
+   */
   const headerReserve = headerBlocks.reduce((m, b) => Math.max(m, b.yMm + b.hMm), 0)
-  const loopOffset = Math.max(0, finite(doc.bands.loop?.offsetMm) - headerReserve)
+  const loopOffset = Math.max(finite(doc.bands.loop?.offsetMm), headerReserve)
 
   // ---- 循环区：能否合并成"一张连续大表" ----
   const mergedTable = mergedLoopTableOf(loopElements, records.length)
   // 声明了 rowsFromRecords 却放不进这个形状时**必须出警告**，不能静默按记录重复，
   // 否则用户以为拿到的是连续台账、实际是 N 张各带表头的小表。
+  // ⚠️ 2026-09-23 第 7 条放宽判据后，唯一还会落到这里的情况是
+  //    「循环区里有**多张**表都声明了按记录铺行」—— 那才是真的无法确定先后。
   if (mergedTable === null && records.length > 0) {
-    const declared = loopElements.find(isRowsFromRecordsTable)
-    if (declared) {
+    const declared = loopElements.filter(isRowsFromRecordsTable)
+    if (declared.length > 1) {
       warnings.push({
         kind: 'loop-table-conflict',
         message:
-          '循环区里的表格声明了「按记录铺行」，但循环区不是只有这一个元素，无法确定它与其它元素的相对位置，' +
-          '已退回"每条记录重复渲染一遍"的方式。请把该表格单独放进循环区（或删掉其它循环元素）后重试。',
-        elementId: declared.id,
+          `循环区里有 ${declared.length} 张表格都勾选了「多条记录排进同一张表」，无法确定谁先谁后，` +
+          '已退回"每条记录重复渲染一遍"的方式。请只保留一张开启该选项。',
+        elementId: declared[0].id,
       })
     }
   }
@@ -387,9 +412,55 @@ export async function renderDocument(input: PipelineInput): Promise<RenderedDoc>
   if (mergedTable) {
     // 所有记录进**同一个** RecordGroup：分页看到的是一张表，而不是 N 张
     mergedBlock = buildMergedLoopTableBlock(mergedTable, records, ctx, contentW, loopOffset, warnings)
+    /*
+     * ⚠️ 循环区里**表格之外**的元素（2026-09-23 第 7 条放宽判据后新增的分支）。
+     *
+     * 放宽之前"循环区只有这一个元素"是硬前提，所以这条分支根本不存在；
+     * 放宽之后必须补上 —— 否则那些元素会**整块静默消失**（不报错、不告警，只是没了，最坏的那种）。
+     *
+     * 口径：**只按第一条记录渲染一次**，排在表格之后。
+     * 这与"视图模板里表格外的元素只在第一页出现一次"是同一套语义（2026-09-23 用户拍板）。
+     * 位置靠 layout 的**游标兜底**（`rowTop = max(recordTop + y, cursorY)`）自然落到表格下方：
+     * 模板里它们本来就在表格下面、y 更大，而表格铺完 N 行后游标已经越过它们。
+     */
+    const others = loopElements.filter((el) => el.id !== mergedTable.id)
+    const otherBlocks =
+      others.length > 0
+        ? buildBlocks(
+            others,
+            { record: records[0] ?? null, recordIndex: 0, widthMm: contentW },
+            ctx,
+            { yOffsetMm: loopOffset },
+            warnings,
+          )
+        : []
+    if (others.length > 0) {
+      warnings.push({
+        kind: 'loop-table-conflict',
+        // ⚠️ `elementId` 必须给：用户要能点着这条提示跳到那张表上去改（这里的"那张表"就是被合并的这张）
+        elementId: mergedTable.id,
+        message:
+          '「多条记录排进同一张表」已开启：循环区里表格之外的其它元素**只会按第一条记录渲染一次**（排在表格下方）。' +
+          '若希望它们每条记录都重复一遍，请把那些元素移到「表尾区」，或者关掉这个选项。',
+      })
+    }
+    /*
+     * ⚠️ 表格与其它元素**必须分成两个 RecordGroup** —— 这是 2026-09-23 第二次反馈第 1 条的**真凶**。
+     *
+     * 放进同一组时，`groupIntoRows` 会按"块的 y 落在上一排的纵向跨度内"判为同一排
+     * （`layout.ts` 的 `sameRow = b.yMm < last.maxBottomMm - PAGE_EPS`）——
+     * 而合并大表的 `hMm` 是**所有记录铺开后的高度**，于是排在表格下方的元素**必然落进表格那一排**。
+     * 那一排里有两个块 ⇒ `row.table` 不成立 ⇒ 失去"按行拆到多页"的资格
+     * ⇒ `placeRow` 只能整排硬塞进当前页。
+     * 症状正是用户截图那样：**27 行全在第一页，第二页到最后一页全空白**（打印 11 页却只有第 1 页有内容）。
+     *
+     * 分成两组之后，靠 layout 的 `recordTop = hasContent ? cursorY : 0` 把第二组排在表格**之后**，
+     * 既不同排、位置也对。
+     */
     groups.push({ recordIndex: 0, blocks: [mergedBlock] })
-    loopBuilt.push([mergedBlock])
-    built += 1
+    if (otherBlocks.length > 0) groups.push({ recordIndex: 0, blocks: otherBlocks })
+    loopBuilt.push([mergedBlock, ...otherBlocks])
+    built += 1 + otherBlocks.length
   } else {
     for (let i = 0; i < records.length; i++) {
       if (input.signal?.aborted) break
