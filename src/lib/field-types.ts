@@ -221,6 +221,39 @@ function anyText(v: unknown, depth = 0): string {
   return scalarText(v)
 }
 
+/**
+ * 值**是不是**一个毫秒时间戳；是就返回数值，不是返回 `null`。
+ *
+ * ⚠️ **数字和数字字符串都要收**（2026-09-24 实测教训）。
+ * 第一版只认 `typeof v === 'number'`，结果飞书返回 `"1769126400000"`（字符串）时被漏掉，
+ * 用户看到的现象是**"我改了跟没改一模一样"** —— 这类"判据太窄"的 bug 比"没改"更难查，
+ * 因为它连日志都不留。
+ *
+ * 区间取 2000-01-01（946684800000）~ 2100-01-01（4102444800000）且要求整数：
+ * 金额 / 数量 / 编号这类业务数字撞不进来，误伤面极小。字符串只收 10~13 位纯数字。
+ */
+export function asTimestampMs(v: unknown): number | null {
+  const n =
+    typeof v === 'number' ? v : typeof v === 'string' && /^\d{10,13}$/.test(v.trim()) ? Number(v.trim()) : NaN
+  return Number.isInteger(n) && n >= 946_684_800_000 && n <= 4_102_444_800_000 ? n : null
+}
+
+/**
+ * 复选框 / 布尔值 → 是否勾选。
+ *
+ * ⚠️ **不能只判 `=== true`**：同一条值经"公式 / 查找引用"转一手之后，飞书可能给
+ * `1` / `'true'` / `'是'` 这些形态（与 `asTimestampMs` 是同一类教训 —— 判据太窄就静默失效）。
+ * 与其事后猜"它到底给的是哪种"，不如把已知形态一次列全。
+ */
+export function isCheckedValue(v: unknown): boolean {
+  if (v === true || v === 1) return true
+  if (typeof v === 'string') {
+    const s = v.trim().toLowerCase()
+    return s === 'true' || s === '1' || s === '是' || s === 'yes'
+  }
+  return false
+}
+
 /** 把 SDK 返回的单元格原始值转成可直接打印的字符串 */
 export function renderCellValue(value: unknown, type: number | undefined, meta?: { dateFormat?: string }): string {
   if (value === null || value === undefined || value === '') return ''
@@ -230,6 +263,20 @@ export function renderCellValue(value: unknown, type: number | undefined, meta?:
     // 显式分支：文本 / 数字原本走 default，会被 dump 成 JSON。
     // 文本字段是**最常见**的字段类型，它的值又是富文本片段数组的高发区，所以必须显式处理。
     case 'text':
+      /*
+       * ⚠️ **公式字段算出日期时，飞书返回的是裸的毫秒时间戳**（2026-09-24 第四批第 3 条）。
+       *
+       * 用户截图：单元格里显示 `2026/01/23`，打印出来却是 `1769126400000`。
+       * 根因：`FT.Formula` 的 `renderKind` 是 `text`，而 SDK **不告诉调用方公式的结果类型** ——
+       * 公式算出日期时给的就是一个数字，于是被 `anyText` 原样打印。
+       *
+       * 判据刻意收得很紧：**必须是公式字段**（`type === FT.Formula`）且值的形状像毫秒时间戳。
+       * 普通文本 / 数字字段一律不受影响 —— 否则一个金额字段被格式化成日期就没法查了。
+       */
+      if (type === FT.Formula) {
+        const ms = asTimestampMs(value)
+        if (ms !== null) return formatDateTime(ms, meta?.dateFormat)
+      }
       return anyText(value)
 
     case 'number': {

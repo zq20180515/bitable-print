@@ -80,6 +80,33 @@ export function DataSanity({ ds, ctx, fields, records, templateTableId }: Props)
 
   const visibleFields = showAllFields ? preview : preview.slice(0, 8)
 
+  /**
+   * 构建时刻的可读形式（2026-09-24 加，排障用）。
+   *
+   * ⚠️ 用**固定格式**手拼，不用 `toLocaleString()` —— 后者受系统区域设置影响，
+   * 用户截图发过来时可能变成完全看不懂的格式。这里要的是"一眼能比大小"。
+   */
+  const buildTimeText = useMemo(() => {
+    /* ⚠️ 读 `window.__BUILD_TIME__`，不是 `__BUILD_TIME__`：后者靠 vite 的 `define`，
+       而实测 dev 模式下 `define` 不替换 ⇒ 会永远显示「（未注入）」等于白加。
+       现在由 `vite.config.ts` 的 `transformIndexHtml` 注入到 `<head>`，dev/build 都可靠。 */
+    const raw = (window as unknown as { __BUILD_TIME__?: string }).__BUILD_TIME__
+    if (typeof raw !== 'string' || raw === '') return '（未注入）'
+    const d = new Date(raw)
+    if (Number.isNaN(d.getTime())) return raw
+    const p = (n: number): string => String(n).padStart(2, '0')
+    return (
+      `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ` +
+      `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+    )
+  }, [])
+
+  /** 版本号也取注入的那份（`__APP_VERSION__` 走 `define`，dev 下不生效 —— 见上面注释） */
+  const versionText = useMemo(() => {
+    const v = (window as unknown as { __BP_VERSION__?: string }).__BP_VERSION__
+    return typeof v === 'string' && v ? v : 'dev'
+  }, [])
+
   return (
     <div className="app-pad">
       <section className="app-section">
@@ -92,6 +119,19 @@ export function DataSanity({ ds, ctx, fields, records, templateTableId }: Props)
         <div className="app-section-body">
           {ctx ? (
             <dl className="app-kv">
+              {/*
+                ⚠️ **这一份产物是什么时候构建的**（2026-09-24 加，排障用）。
+
+                起因：用户反复说"改了跟没改一模一样"，而我每次都验证过"服务端提供的代码是新的" ——
+                缺的正是"插件里跑的到底是哪一次构建"这张身份证。
+                判读方法：**重启服务后这个时间会变**；插件里没变 ⇒ 插件加载的是旧模块，
+                需要**关掉插件重新打开**（刷新飞书页面通常不够：iframe 里的模块已经进内存了）。
+              */}
+              <dt>插件版本</dt>
+              <dd>
+                <span className="app-mono">{versionText}</span>
+                <span style={{ marginLeft: 'var(--sp-3)', color: 'var(--text-3)' }}>构建于 {buildTimeText}</span>
+              </dd>
               <dt>数据表</dt>
               <dd>{ctx.tableName || '（未取到）'}</dd>
               <dt>视图</dt>
@@ -162,7 +202,7 @@ export function DataSanity({ ds, ctx, fields, records, templateTableId }: Props)
                         {f.isPrimary ? ' · 主' : ''}
                         {meta.capability !== 'full' ? ' · 受限' : ''}
                       </span>
-                      <span className="san-value" title={f.rendered}>
+                      <span className="san-value" title={`本地渲染：${f.rendered}`}>
                         {f.rendered || <span className="app-dim">（空）</span>}
                       </span>
                     </div>

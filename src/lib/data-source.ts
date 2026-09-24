@@ -42,6 +42,15 @@ export interface RecordItem {
   recordId: string
   /** fieldId → 单元格原始值 */
   fields: Record<string, unknown>
+  /**
+   * fieldId → **飞书界面上显示的那串文本**（2026-09-24 第四批第 3 条的根本解）。
+   *
+   * ⚠️ **是旁路，不是替代**：`fields` 里的原始值一个字不动（附件、图片那些还要用它），
+   * 渲染时**优先**读这里；这里没有的字段，才回落本地格式化（`renderCellValue`）。
+   * 这样"飞书显示什么就打印什么"与"快"两个目标可以同时满足：
+   * 只对公式 / 查找引用这类"自己算不准"的字段去取，其余照旧走本地。
+   */
+  cellStrings?: Record<string, string>
 }
 
 export interface TableContext {
@@ -220,6 +229,23 @@ export interface DataSource {
    * ⚠️ 有效期仅 10 分钟；SDK 内部按 5 个 token 一组自动切片。
    */
   getAttachmentUrls(tableId: string, recordId: string, fieldId: string, tokens: string[]): Promise<string[]>
+
+  /**
+   * ⚠️ **飞书自己格式化的「显示文本」** —— 2026-09-24 第四批第 3 条的根本解。
+   *
+   * 用户原话：「应该是**多维表格里显示什么就打印什么**，如果只修复时间，
+   * 那以后其他公式是不是需要重新改」。这个判断是对的：我们自己在 `renderCellValue` 里
+   * 按字段类型猜"该怎么显示"，**永远追不上飞书**（公式的结果类型在 API 里根本拿不到，
+   * 只能靠值的形状猜，于是每遇到一种新公式就要再补一次）。
+   *
+   * SDK 的 `table.getCellString(fieldId, recordId)` 返回的就是界面上那串文本 ⇒ 拿它最准。
+   *
+   * ⚠️ **但它必须逐格异步调用**（没有批量版）⇒ **只对"自己算不准"的字段用**：
+   * 公式（`FT.Formula`）、查找引用、自动编号这类；文本/数字/日期/选项/人员/附件
+   * 继续走本地格式化（快，而且本来就准）。
+   * 可选方法：mock 数据源没有这个概念，不实现即可。
+   */
+  getCellString?(tableId: string, recordId: string, fieldId: string): Promise<string>
 
   // ---- 模板表 ----
   /** 找到或创建 _打印模板_ 表，返回 tableId */

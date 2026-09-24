@@ -152,6 +152,18 @@ export function PreviewPane({ result, error, busy, onClose }: Props) {
         ) : result ? (
           <>
             这一份就是打印出去的那一份（同一套排版管线），数据：{result.source}
+            {/*
+              ⚠️ 「预计打印多少条」必须**显式**说出来（2026-09-24 第四批第 6 条）。
+              预览为了"边改边看一眼"只渲染前 `previewLimit` 条，所以**用户看到的页数 ≠ 真实打印页数**。
+              不说清就会出现"我以为只打 2 页、结果打出来 40 页"这种事 —— 这行不是装饰，
+              它把"你看到的"和"真会打印的"明确分开。
+            */}
+            {result.totalRecords > result.recordCount ? (
+              <span className="bp-preview__limit">
+                预计打印 <b>{result.totalRecords}</b> 条数据，本次仅展示前 <b>{result.recordCount}</b> 条
+                （用于校对版式，实际打印按全部数据分页）
+              </span>
+            ) : null}
           </>
         ) : null}
       </p>

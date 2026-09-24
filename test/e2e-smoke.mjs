@@ -543,6 +543,29 @@ async function main() {
 
     await cdp.send('Runtime.enable')
     await cdp.send('Page.enable')
+    /*
+     * ⚠️ **挡掉无头环境特有的 `cancel`**（2026-09-24，为修 e2e 的 ⑫m 加的）。
+     *
+     * 现象（打点实测 `__pickTrace`）：无头 Edge 里 `input[type=file].click()` 带**用户手势**
+     * 执行时，浏览器无法显示文件选择器 ⇒ **立刻派发 `cancel`** ⇒ `lib/file-pick.ts` 按设计
+     * 把刚建好的 input 回收掉。链路是 `enter → appended → clicked,inDom=true → cancel`。
+     *
+     * 这一串**是正确行为**（真机上用户按取消走的也是它），但它让"input 挂在 body 上"这个
+     * **中间态**无法观测；更要命的是让紧随其后的【承重】断言（用 `DOM.setFileInputFiles`
+     * 塞真实文件 ⇒ 图进画布）整段被 `if (fileNode?.nodeId)` 跳过 —— 那是这条链上最有价值的一条。
+     *
+     * ⇒ 在**测试侧**把这类 cancel 监听丢掉：只影响自动化环境，产品代码一个字不改。
+     *    用 `addScriptToEvaluateOnNewDocument` 注册，后面每一次 `Page.navigate` 都会注入。
+     */
+    await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
+      source: `(() => {
+        const origAdd = EventTarget.prototype.addEventListener;
+        EventTarget.prototype.addEventListener = function (type, fn, opts) {
+          if (type === 'cancel' && this instanceof HTMLInputElement && this.type === 'file') return;
+          return origAdd.call(this, type, fn, opts);
+        };
+      })();`,
+    })
     await cdp.send('Log.enable')
     /**
      * ⚠️ **把页面提到最前**（2026-09-21 加）。
@@ -1615,6 +1638,27 @@ async function main() {
           (after?.children ?? 0) === (before?.children ?? 0) + 1 && (after?.els ?? 0) === before?.els,
           `格内子元素 ${before?.children} → ${after?.children}；画布元素 ${before?.els} → ${after?.els}；码/图渲染=${after?.childCode}`,
         )
+        /*
+         * ⚠️【外观断言】格内元素**不能再挂自由层那套码样式类**（2026-09-24 第四批第 1 条）。
+         *
+         * 用户原话：「每个都长的不一样……建议把附件、二维码、条形码、图片保持画风一致」。
+         * 根因是格内码的占位盒挂的是 `bp-el-code bp-el-code--ph`（那是**自由层**的类），
+         * 于是格内多出第三种长相（绿框 + 橙色虚线 + 橙字）。
+         *
+         * 这条断言的价值：它是**唯一**能把"改动没生效"和"模板里存的是旧数据"区分开的东西 ——
+         * 前者是靠**代码**决定的（一定会红），后者要靠重新拖入元素才会变。
+         */
+        const chipCls = await cdp.eval(`(() => ({
+          hasLegacyCode: !!document.querySelector('.bp-el-cell__child .bp-el-code--ph'),
+          inner: (document.querySelector('.bp-el-cell__child') || {}).innerHTML
+            ? document.querySelector('.bp-el-cell__child').innerHTML.slice(0, 150)
+            : null,
+        }))()`)
+        ok(
+          '⑫f【第 1 条】格内元素**不再**使用自由层的码样式类（画风统一）',
+          chipCls?.hasLegacyCode === false,
+          `仍含 bp-el-code--ph=${chipCls?.hasLegacyCode}；inner=${chipCls?.inner}`,
+        )
         await cdp.eval(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }))`)
         await sleep(400)
       }
@@ -1942,9 +1986,22 @@ async function main() {
             const inp = document.querySelector('.bp-panel--inspector [aria-label="占单元格宽度"]');
             return { styleW: c ? c.style.width : null, inputVal: inp ? inp.value : null };
           })()`)
+          /*
+           * ⚠️ 2026-09-24：断言**不再写死 100% / 95%**。
+           *
+           * 格内码的初始百分比自第四批第 3/5 条起不再是 100 —— 它按 `18mm / 格宽` 反算
+           * （码贴着格子宽度，绿框才不会比码大一圈）。写死初值会把"有意改变的行为"判成回归。
+           * 现在只守**相对关系**：ArrowDown 一步 = -5%，且输入框读数与画布宽度一致。
+           */
+          const pctOf = (s) => (s ? Number(String(s).replace('%', '')) : NaN)
+          const beforePct = pctOf(wBefore)
+          const afterPct = pctOf(wAfter?.styleW)
           ok(
             '⑫j 改「占格宽」⇒ 画布上那个格内元素的宽度**真的跟着变**（控件不是空转的）',
-            wBefore === '100%' && wAfter?.styleW === '95%' && wAfter?.inputVal === '95',
+            Number.isFinite(beforePct) &&
+              Number.isFinite(afterPct) &&
+              Math.abs(beforePct - afterPct - 5) < 0.6 &&
+              Math.abs(Number(wAfter?.inputVal) - afterPct) < 0.05,
             `宽度 ${wBefore} → ${wAfter?.styleW}；输入框=${wAfter?.inputVal}`,
           )
 
@@ -1956,8 +2013,8 @@ async function main() {
             return c ? c.style.width : null;
           })()`)
           ok(
-            '⑫j 改格内元素的尺寸**进了撤销栈**（Ctrl+Z 回到 100%）',
-            wUndone === '100%',
+            '⑫j 改格内元素的尺寸**进了撤销栈**（Ctrl+Z 回到改动前的值）',
+            wUndone === wBefore,
             `撤销后宽度=${wUndone}`,
           )
 

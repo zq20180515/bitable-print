@@ -1014,7 +1014,8 @@ export function EditorShell({
        */
       const block = cellBlockElementOf(payload)
       if (block) {
-        const child = normalizeChildInCell(block)
+        /* 传格宽：码的 `w` 要按 `18mm / 格宽` 反算，外层绿框才会贴着码（第四批第 3 / 5 条） */
+        const child = normalizeChildInCell(block, cellWidthMm(found.el, cellId))
         const r = attachChildToCell(found.el, cellId, child)
         if (!r) return false
         api.mergeElement(tableId, r.patch)
@@ -1651,7 +1652,7 @@ export function EditorShell({
                 /* 归一化尺寸口径：自由层的 `w` 是 mm、格内是百分比（见 types.ts 第 ④ 条）。
                    不换算的话，一个 40mm 宽的图片进了格子会变成 40% 宽 —— 用户什么都没做，
                    只是把它拖进格子，尺寸不该自己变。 */
-                const r = attachChildToCell(table, cellId, normalizeChildInCell(el))
+                const r = attachChildToCell(table, cellId, normalizeChildInCell(el, cellWidthMm(table, cellId)))
                 if (!r) return false
                 // 先写格子、再删原元素 —— 顺序反了会出现"元素没了、内容也没进去"的空档
                 api.mergeElement(tableId, r.patch)

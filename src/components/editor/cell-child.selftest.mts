@@ -315,7 +315,12 @@ section('normalizeChildInCell / normalizeChildOutOfCell：跨边界换算')
   const free = img('img_1', { w: 40, h: 25 })
   const inside = C.normalizeChildInCell(free)
   eq(inside.w, 100, '进格子：宽度归一化成 100%（不是把 40mm 读成 40%）')
-  eq(inside.h, 'auto', '进格子：高度改由内容决定')
+  /*
+   * ⚠️ **2026-09-24 第四批 ④ 改了这条**：旧断言是 `inside.h === 'auto'`（"高度改由内容决定"）。
+   * 用户口径是「图片、附件也默认按单元格尺寸**等比适应**，不把单元格撑变形」——
+   * 格内 `'auto'` 等于"把行撑到原图那么高"，正是"表格被撑变形"的来源 ⇒ 现在给默认盒高。
+   */
+  eq(inside.h, C.CELL_CHILD_DEFAULT_H_MM, '【第 ④ 条】进格子：高度拿默认盒高（不再"由内容决定"⇒ 不撑变形）')
   eq(inside.id, 'img_1', '进格子：id 不变')
   /* `dataUrl` 只在 image 这一类上；`AnyElement` 是联合类型，所以这里显式收窄一下再比 */
   eq((inside as { dataUrl?: string }).dataUrl, (free as { dataUrl?: string }).dataUrl, '进格子：内容字段原样带过去')
@@ -452,7 +457,7 @@ section('table-actions / cellWidthMm：这一格多宽')
 // 8. 本轮（2026-09-23 第二批）新增行为的守卫
 // ============================================================
 
-section('进格子：码要拿默认高度（否则跟着格宽长成大方块）')
+section('进格子：四种元素的尺寸口径（2026-09-24 第四批 ④）')
 {
   const qr = {
     id: 'qr_1',
@@ -464,11 +469,34 @@ section('进格子：码要拿默认高度（否则跟着格宽长成大方块�
     source: { kind: 'static' as const, value: 'https://example.com' },
   } as unknown as AnyElement
   const inside = C.normalizeChildInCell(qr)
-  eq(inside.w, 100, '进格子：码的宽度同样归一化成 100%')
+  eq(inside.w, 100, '【没传格宽时】宽度归一化成 100%（老调用不受影响）')
   eq(inside.h, C.CELL_CHILD_CODE_H_MM, '进格子：码拿**默认高度**（不跟着格宽长成大方块，第 8 条）')
-  ok(C.CELL_CHILD_CODE_H_MM > 0 && C.CELL_CHILD_CODE_H_MM <= 40, '默认高度是个"能看"的码尺寸（0..40mm）')
-  /* 反向对照：图片仍然是"高度由内容决定"，码这条特例没有误伤图片 */
-  eq(C.normalizeChildInCell(img('i2', { h: 30 })).h, 'auto', '【反向对照】图片仍然是 h=auto（码的特例没误伤图片）')
+  ok(C.CELL_CHILD_CODE_H_MM > 0 && C.CELL_CHILD_CODE_H_MM <= 40, '默认高度是个"能看"的尺寸（0..40mm）')
+
+  /*
+   * ⚠️ **这条在 2026-09-24 被翻过来了（第四批 ④）**。
+   *
+   * 旧断言是「图片仍然是 `h: 'auto'`（码的特例没误伤图片）」。
+   * 而用户口径是：「二维码、条形码、**图片、附件**，放入单元格后，默认按照单元格的尺寸
+   * 等比适应，**不把单元格撑变形**」—— 格内 `'auto'` 的真实含义就是"把行撑到原图那么高"，
+   * 一张 800×1200 的竖图会把整行撑到上百毫米，那正是"表格被撑变形"的来源。
+   * ⇒ 现在四种元素**一视同仁**：`h` 都拿默认高。
+   */
+  const imgIn = C.normalizeChildInCell(img('i2', { h: 30 }))
+  eq(imgIn.h, C.CELL_CHILD_CODE_H_MM, '【第 ④ 条】图片进格子也拿**默认高度**（旧行为 h=auto 会把行撑变形）')
+  eq(imgIn.w, 100, '【第 ④ 条】没传格宽时图片宽度同样是 100%（与码同一把尺子）')
+
+  /* 传了格宽时：宽度按 `默认高 / 格宽` 反算 ⇒ 框贴着内容，不再是满格宽 */
+  const wide = C.normalizeChildInCell(img('i3', { h: 30 }), 60)
+  ok(
+    typeof wide.w === 'number' && wide.w > 0 && wide.w < 100,
+    `传格宽后宽度按比例收窄（60mm 格 → ${wide.w}%），不再是满格宽`,
+  )
+  eq(
+    C.normalizeChildInCell(qr, 60).w,
+    wide.w,
+    '【第 ④ 条】码与图片在同一个格子里拿到**同一个百分比**（四种元素一视同仁）',
+  )
 }
 
 section('表格：新插入的列继承邻格样式（标题行效果不丢）')

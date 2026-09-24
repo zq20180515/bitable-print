@@ -686,6 +686,28 @@ export class SdkDataSource implements DataSource {
     }
   }
 
+  /**
+   * ⚠️ **飞书自己格式化的「显示文本」**（2026-09-24 第四批第 3 条的**根本解**）。
+   *
+   * 用户原话：「应该是多维表格里显示什么就打印什么，如果只修复时间，
+   * 那以后其他公式是不是需要重新改」—— 这个判断是对的：公式的结果类型在 API 里**拿不到**，
+   * 我们只能在 `renderCellValue` 里靠值的形状猜，于是每遇到一种新公式就要再补一次。
+   * `table.getCellString` 直接把界面上那串文本给出来，一次性解决。
+   *
+   * ⚠️ **逐格异步、没有批量版** ⇒ 只对"自己算不准"的字段调（见 `DataSource.getCellString`）。
+   * ⚠️ 失败**不抛错**、返回空串：拿不到就让上层回落到本地格式化 ——
+   *    打印不能因为某个字段取不到"显示文本"就整个失败。
+   */
+  async getCellString(tableId: string, recordId: string, fieldId: string): Promise<string> {
+    try {
+      const table = await this.table(tableId)
+      const s = await table.getCellString(fieldId, recordId)
+      return typeof s === 'string' ? s : ''
+    } catch {
+      return ''
+    }
+  }
+
   // ============================================================
   // 模板表
   // ============================================================

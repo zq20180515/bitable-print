@@ -32,7 +32,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { TemplateDoc, TemplateKind } from '../../lib/types'
-import type { FieldMeta } from '../../lib/data-source'
+import type { FieldMeta, RecordItem } from '../../lib/data-source'
 import {
   enterFullscreen,
   exitFullscreen,
@@ -96,6 +96,18 @@ export interface EditorOverlayProps {
    * 传 `null` = 注销。
    */
   onEscapeLayerReady?(fn: (() => boolean) | null): void
+  /**
+   * 用户在向导第①步**实际勾选**的记录。
+   *
+   * ⚠️ 不传的后果（2026-09-24 第四批第 2 条）：编辑器里的「预览」会**回退到读整张表**
+   * （`preview.ts` 的三级取数里，第一级就是宿主注入的 `records`），
+   * 于是用户只勾了 4 条、预览却把整张表的 54 条都带进来。
+   * 向导第③步的预览一直是对的 —— 因为那边直接吃 `records`，没有经过这里这一层透传。
+   *
+   * ⇒ 这条链是 `Wizard → EditorOverlay → EditorShell → renderEditorPreview`，
+   *    **任何一环漏传都会静默退回"读整表"**，而用户看到的是"数据不对"、不是"参数没传"。
+   */
+  records?: RecordItem[]
   onRename(name: string): void
 }
 
@@ -123,6 +135,7 @@ export function EditorOverlay({
   onDone,
   onCancel,
   onEscapeLayerReady,
+  records,
   onRename,
 }: EditorOverlayProps) {
   /**
@@ -382,6 +395,7 @@ export function EditorOverlay({
       <EditorShell
         doc={doc}
         fields={fields}
+        records={records}
         templateName={templateName}
         kind={kind}
         topActions={topActions}

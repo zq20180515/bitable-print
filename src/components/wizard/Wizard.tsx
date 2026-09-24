@@ -138,6 +138,8 @@ export function Wizard({ ds, ctx, fields, records, recordOrder, fieldOrder, temp
         kind={w.editorTarget?.kind ?? w.kind}
         doc={w.editorDoc}
         fields={fields}
+        /* 宿主勾选的那些记录 —— 编辑器的「预览」必须与向导第③步看的是**同一批数据**（第四批第 2 条） */
+        records={records}
         dirty={w.editorDirty}
         onChange={w.changeEditorDoc}
         onDone={() => w.commitEditor()}

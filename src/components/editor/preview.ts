@@ -31,6 +31,8 @@
 import type { DataSource, FieldMeta, RecordItem } from '../../lib/data-source'
 import { createDataSource } from '../../lib/bootstrap'
 import { resolveAttachmentImages } from '../../lib/attachment'
+/* ⚠️ 与向导的打印/预览**共用同一份预取实现** —— 两条链各写一套就会"这边好了那边没变" */
+import { fillCellStrings } from '../../lib/cell-strings'
 import type { ResolvedImage } from '../../render/context'
 import { DEFAULT_ATTACH_CONFIG } from '../../lib/types'
 import { emptyRenderContext } from '../../render/context'
@@ -72,6 +74,10 @@ export interface EditorPreviewResult {
   /** 这批数据是哪来的。直接摊在预览面板上 —— 用户必须知道自己在看什么 */
   source: string
   recordCount: number
+  /** **未截断**的总条数（预览为提速只渲染前 `previewLimit` 条） */
+  totalRecords: number
+  /** 本次实际渲染的上限（= `PREVIEW_MAX_RECORDS`）。UI 用它写"仅展示前 N 条" */
+  previewLimit: number
 }
 
 interface TableData {
@@ -181,10 +187,45 @@ export async function renderEditorPreview(input: EditorPreviewInput): Promise<Ed
   let fields = input.fields
   let records: RecordItem[]
   let source: string
+  /**
+   * **未截断**的记录总数。
+   *
+   * 预览只渲染前 `PREVIEW_MAX_RECORDS` 条（"边改边看一眼"的场景不能吃全量），
+   * 但用户需要知道这份模板**实际会打印多少条** —— 2026-09-24 第四批第 6 条：
+   * 「只展示前 N 条记录，超出部分不进行展示，在预览状态下提示用户，预计打印 xx 条数据」。
+   * UI 用它和 `recordCount` 比对，决定要不要显示那行提示。
+   */
+  let totalRecords = 0
+  /**
+   * 能问"显示文本"的数据源 + 表 id。
+   * ⚠️ 只有"插件自己去读表"那条路有（宿主注入 `records` 时 `data` 为 null）——
+   * 没有就**跳过预取**，回落本地格式化，不影响任何既有行为。
+   */
+  let srcDs: TableData['ds'] | null = null
+  let srcTableId = ''
 
   if (input.records && input.records.length > 0) {
+    totalRecords = input.records.length
     records = input.records.slice(0, PREVIEW_MAX_RECORDS)
     source = `已选范围的前 ${records.length} 条记录`
+    /*
+     * ⚠️ **即使 records 是宿主给的，也必须拿一次 `ds`** —— 2026-09-24 踩的坑，别再踩。
+     *
+     * 上一轮刚把"向导勾选的记录"透传进编辑器（修"预览带全表"那条），于是
+     * `input.records` 有值 ⇒ 走这条分支 ⇒ `data` 恒为 null ⇒
+     * **下面那段 `cellStrings` 预取整段被跳过** ⇒
+     * "多维表格显示什么就打印什么"这个**根本解看起来像根本没写**（用户原话："一丁点变化都没有"）。
+     *
+     * `loadTable()` 是**模块级缓存**（`tablePromise`），第一次之后几乎零成本，
+     * 所以这里补一次完全不心疼；拿不到就跳过预取，回落本地格式化。
+     */
+    try {
+      const d = await withTimeout(loadTable(), BOOT_TIMEOUT_MS, '读取表格数据')
+      srcDs = d.ds
+      srcTableId = d.tableId
+    } catch {
+      /* 拿不到就不预取 —— 预览不能因此失败 */
+    }
   } else {
     let data: TableData | null = null
     try {
@@ -194,11 +235,15 @@ export async function renderEditorPreview(input: EditorPreviewInput): Promise<Ed
       data = null
     }
     if (data && data.records.length > 0) {
+      totalRecords = data.records.length
       records = data.records.slice(0, PREVIEW_MAX_RECORDS)
       if (data.fields.length) fields = data.fields
+      srcDs = data.ds
+      srcTableId = data.tableId
       source = `当前表格前 ${records.length} 条记录（共读到 ${data.records.length} 条）`
     } else {
       records = sampleRecords(fields)
+      totalRecords = records.length
       source = '示例值（没读到你的表格数据）—— 下面每列填的其实是字段名，只验证版式'
     }
   }
@@ -210,6 +255,20 @@ export async function renderEditorPreview(input: EditorPreviewInput): Promise<Ed
   // 上下文构造器与 wizard 的 runRender 同源（emptyRenderContext）。today / printTime
   // 由它在**进入渲染时定值**，所以同一份预览里不会出现两个打印时间。
   /* 附件图片必须先解析好再交给渲染器（见 resolvePreviewImages 的注释） */
+
+  /*
+   * ⚠️ 预取**飞书显示文本**（2026-09-24 第四批第 3 条的**根本解**）。
+   *
+   * 用户原话：「应该是多维表格里显示什么就打印什么，如果只修复时间，那以后其他公式
+   * 是不是需要重新改」。这个判断是对的 —— 所以不再靠我们猜值的形状，直接问飞书要那串文本。
+   *
+   * ⚠️ **只对公式字段做**：`getCellString` 逐格异步、**没有批量版**，
+   * 全字段跑（600 条 × 20 字段）会让预览慢到不可用；而公式恰恰是"本地算不准"的那一类
+   * （结果类型在 API 里拿不到）。文本 / 数字 / 日期 / 选项 / 人员 / 附件走本地那套本就准。
+   * ⚠️ 拿不到就跳过，**绝不阻塞预览**：`getCellString` 内部已吞异常并返回空串。
+   */
+  await fillCellStrings(srcDs, srcTableId, records, fields)
+
   const images = await resolvePreviewImages(records, fields, input.signal)
 
   const ctx = emptyRenderContext({
@@ -237,5 +296,7 @@ export async function renderEditorPreview(input: EditorPreviewInput): Promise<Ed
     warnings: rendered.warnings.length,
     source,
     recordCount: records.length,
+    totalRecords,
+    previewLimit: PREVIEW_MAX_RECORDS,
   }
 }

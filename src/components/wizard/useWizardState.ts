@@ -33,6 +33,8 @@ import type { CreateTemplateInput, TemplateListItem } from '../../lib/template-s
 //    ⚠️ 别连带删掉下面的 `fieldMap` —— 它现在只服务排版引擎（runRender 传进去用），
 //       名字看着像筛选的残留，其实不是。
 import { resolveAttachmentImages, releaseAttachmentCache } from '../../lib/attachment'
+/* ⚠️ 与编辑器预览**共用同一份预取实现**（见它的文件头注释：两条链各写一套就会分叉） */
+import { fillCellStrings } from '../../lib/cell-strings'
 import type { ImageFailure, ImageWarning, ResolveStats } from '../../lib/attachment'
 import { renderDocument } from '../../render/pipeline'
 import type { RenderWarning, RenderedDoc } from '../../render/context'
@@ -993,6 +995,17 @@ export function useWizardState({
           return null
         }
 
+
+        /*
+         * ⚠️ **预取"飞书显示文本"**（2026-09-24 第四批第 3 条的**根本解**）。
+         *
+         * 用户原话：「公式仅在**画布编辑页的预览**中是正确的，在**打印和打印预览**中不对」——
+         * 因为预取最初只接在编辑器那条链上。这里是**第二个入口**（向导的预览 + 导出/打印），
+         * 现在两条链共用 `lib/cell-strings.ts` 的同一份实现，不许再各写一套。
+         *
+         * 位置放在图片解析之前：它是纯 SDK 调用、不依赖图片，早一点拿到就能早一点进渲染。
+         */
+        await fillCellStrings(ds, ctx.tableId, scopedRecords, fields)
 
         // ② 渲染 + 分页
         setRender((s) => ({ ...s, phase: 'layout', done: 0, total: 0 }))

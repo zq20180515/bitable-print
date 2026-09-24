@@ -39,7 +39,7 @@ import { findElement, readBand, withBand, type BandKey } from './doc-bands'
  */
 import { round1 } from './round'
 // 尺寸口径的规范实现在 lib/（见下方 re-export 处的说明）—— 这里要**本地**用到 `childWidthPct`
-import { childWidthPct } from '../../lib/cell-geometry'
+import { childWidthPct, CELL_CHILD_DEFAULT_H_MM, MIN_CELL_CHILD_PCT } from '../../lib/cell-geometry'
 
 const PREFIX = 'child:'
 
@@ -155,7 +155,13 @@ export function isCellChildId(id: string | null | undefined): boolean {
  * `components/editor/`（会形成循环依赖，且渲染引擎必须能被 Node 直接加载）。
  * 这里只做 re-export，保住全部既有引用（含 `cell-child.selftest.mts` 与 Canvas）。
  */
-export { MIN_CELL_CHILD_PCT, childHeightMm, childWidthPct } from '../../lib/cell-geometry'
+export {
+  MIN_CELL_CHILD_PCT,
+  CELL_CHILD_DEFAULT_H_MM,
+  childBoxHeightMm,
+  childHeightMm,
+  childWidthPct,
+} from '../../lib/cell-geometry'
 
 /**
  * **进格子**：把一个自由层元素归一化成格内子元素。
@@ -172,11 +178,35 @@ export { MIN_CELL_CHILD_PCT, childHeightMm, childWidthPct } from '../../lib/cell
  */
 export const CELL_CHILD_CODE_H_MM = 18
 
-export function normalizeChildInCell<T extends AnyElement>(child: T): T {
-  if (child.kind === 'qrcode' || child.kind === 'barcode') {
-    return { ...child, w: 100, h: CELL_CHILD_CODE_H_MM }
-  }
-  return { ...child, w: 100, h: 'auto' }
+/**
+ * ⚠️ 2026-09-24 第四批第 3 / 5 条修正：码的 `w` **不再写死 100**。
+ *
+ * 原来不管格子多宽都给 `w: 100`（占满格宽），而码本体只有 18mm 宽 ⇒ 外层盒子的绿框
+ * （`.bp-el-cell__child` 的 `outline`）比码大一大圈。用户原话是
+ * 「条形码和二维码会多一圈绿色的框，没有完全贴合自身」，
+ * 而视觉上它也像「二维码显示不全」—— 框铺满整格、码缩在左边一小块。
+ *
+ * 现在按 `18 / 格宽` 反算百分比：**框贴着码走**。
+ * 没传 `cellWidthMm` 时仍退回 100（老调用与单测不受影响）。
+ */
+export function normalizeChildInCell<T extends AnyElement>(child: T, cellWidthMm?: number): T {
+  /*
+   * ⚠️ **四种元素一视同仁**（2026-09-24 第四批 ④）。
+   *
+   * 用户口径：「二维码、条形码、图片、附件，放入单元格后，**默认按照单元格的尺寸等比适应，
+   * 不把单元格撑变形**」。原来只有码拿到默认高，图片 / 附件是 `h: 'auto'` ——
+   * 而在格内"由内容决定"等于**把行撑到原图那么高**，正是"表格被撑变形"的来源。
+   *
+   * ⇒ 统一成：
+   *   · `h` = `CELL_CHILD_DEFAULT_H_MM`（18mm，四种一致 ⇒ 行高一致）
+   *   · `w` = 按 `默认高 / 格宽` 反算的百分比（方形元素框贴着内容；非方形由 `contain` 兜）
+   *   · `fit` 保持元素自己的取值（默认 `contain` = 等比、不拉伸）
+   */
+  const pct =
+    typeof cellWidthMm === 'number' && cellWidthMm > 0
+      ? Math.max(MIN_CELL_CHILD_PCT, Math.min(100, (CELL_CHILD_DEFAULT_H_MM / cellWidthMm) * 100))
+      : 100
+  return { ...child, w: round1(pct), h: CELL_CHILD_DEFAULT_H_MM }
 }
 
 /**

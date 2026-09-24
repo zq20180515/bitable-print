@@ -42,12 +42,19 @@ import {
   pxToMm,
 } from '../lib/types'
 import type { RecordItem } from '../lib/data-source'
-import { fieldMeta, formatDateTime, isImageAttachment, isVectorImage, renderCellValue } from '../lib/field-types'
+import {
+  fieldMeta,
+  formatDateTime,
+  isCheckedValue,
+  isImageAttachment,
+  isVectorImage,
+  renderCellValue,
+} from '../lib/field-types'
 /*
  * 格内子元素的尺寸口径 —— 与画布（`components/editor/cell-child.ts`）**共用同一份实现**。
  * 下沉到 `lib/` 就是为了让渲染引擎可以引用它，而不必反向 import UI 层。
  */
-import { childBoxWidthMm, childHeightMm, childWidthPct } from '../lib/cell-geometry'
+import { childBoxHeightMm, childBoxWidthMm, childHeightMm, childWidthPct } from '../lib/cell-geometry'
 import type { PageModel, RenderContext, RenderWarning, ResolvedImage } from './context'
 import { imageKey } from './context'
 import { barcodeSvg, isCode128Encodable, qrCodeSvg, QR_MAX_BYTES, utf8ByteLength } from './code-elements'
@@ -257,6 +264,15 @@ function resolveField(fieldId: string | null, fieldName: string, scope: RenderSc
     return ''
   }
   if (!scope.record) return ''
+  /*
+   * ⚠️ **优先用飞书自己格式化的显示文本**（2026-09-24 第四批第 3 条的**根本解**）。
+   *
+   * `cellStrings` 由取数阶段对"自己算不准"的字段（公式、查找引用…）预取，
+   * 它直接就是界面上那串文本 ⇒ 打印与界面一致，且**以后飞书新增公式类型也不用再改代码**。
+   * 这里取不到才回落本地 `renderCellValue` —— 本地那份对常规类型更快，且不依赖 SDK 调用。
+   */
+  const shown = scope.record.cellStrings?.[fieldId]
+  if (typeof shown === 'string' && shown !== '') return clippedText(shown, scope, warnings)
   return clippedText(renderCellValue(scope.record.fields[fieldId], meta.type), scope, warnings)
 }
 
@@ -330,11 +346,24 @@ export function renderInline(
       case 'text':
         out += `<span style="${attr(inlineCss(n.style))}">${escapeHtml(n.text)}</span>`
         break
-      case 'field':
-        out += `<span style="${attr(inlineCss(n.style))}">${escapeHtml(
-          resolveField(n.fieldId, n.fieldName, scope, ctx, warnings),
-        )}</span>`
+      case 'field': {
+        /*
+         * ⚠️ **复选框在这条路径上也要画方框**（2026-09-24 第四批第 3 条）。
+         *
+         * 上一轮我只改了 `renderElement` 的 `fieldBlock` 分支 —— 那对应"从左侧面板拖出来的字段块"。
+         * 而**放在表格单元格里的字段走的是这条行内路径**（`renderCellContent` → `renderInline`），
+         * 于是用户表里的复选框**一直还是文字「是/否」**。
+         * 又是"改了一条链、漏了另一条" —— 这个项目里已经栽过好几次：
+         * **凡是字段渲染，`fieldBlock` 与 `inline field` 两条路必须一起改。**
+         */
+        const fMeta = n.fieldId ? ctx.fieldMap.get(n.fieldId) : undefined
+        const inner =
+          fMeta && fieldMeta(fMeta.type).renderKind === 'checkbox'
+            ? checkboxHtml(isCheckedValue(scope.record?.fields?.[n.fieldId ?? '']), n.style)
+            : escapeHtml(resolveField(n.fieldId, n.fieldName, scope, ctx, warnings))
+        out += `<span style="${attr(inlineCss(n.style))}">${inner}</span>`
         break
+      }
       case 'sysvar':
         out += `<span style="${attr(inlineCss(n.style))}">${escapeHtml(resolveSysVar(n, scope, ctx))}</span>`
         break
@@ -399,8 +428,20 @@ export function layoutAttachmentGroup(
 ): AttachmentLayoutResult {
   const warnings: RenderWarning[] = []
   const W = Math.max(0, finite(containerWidthMm))
-  if (config.mode === 'none' || W <= 0 || items.length === 0) {
+  // ① 用户显式选了"不打印附件" ⇒ 输出空。这是**选择**，不是"没内容"，所以不给占位框。
+  if (config.mode === 'none' || W <= 0) {
     return { html: '', heightMm: 0, warnings }
+  }
+  /*
+   * ② 字段里**没有附件** ⇒ 给占位框（2026-09-24 第四批第 1 / 5 条）。
+   *
+   * 原来这里直接返回空 html ⇒ 同一行里码有虚线框、图片有虚线框，附件那一格却什么都没有，
+   * 用户读作"这块坏了"。现在与它们共用 `placeholderHtml`。
+   * ⚠️ `heightMm` 取 10mm：与 `placeholderHtml` 的 `min-height` 同量级，
+   *    否则行的测量高度会与画布上看到的不一致（那会变成"画布≠打印"）。
+   */
+  if (items.length === 0) {
+    return { html: placeholderHtml('附件', '本条记录没有附件'), heightMm: 10, warnings }
   }
 
   /**
@@ -656,6 +697,15 @@ function stripExt(name: string): string {
  * 这是"框内等比缩放"的自然读法：框是权威，图去适配框。
  */
 function renderImage(el: Extract<AnyElement, { kind: 'image' }>, scope: RenderScope): string {
+  /*
+   * ⚠️ **还没选图时必须给占位框**（2026-09-24 第四批第 1 / 5 条）。
+   *
+   * 原来这里直接输出 `<img src="">` —— 空 `src` 会塌成一条细线（高度近乎 0），
+   * 打印出来那一格什么都没有，用户读作"这儿坏了"；而同一行的二维码却有个虚线框
+   * （`codePlaceholderHtml`）⇒ 同一行两种长相。
+   * ⇒ 现在与码、附件共用 `placeholderHtml`。
+   */
+  if (!el.dataUrl) return placeholderHtml('图片', '还没选择图片')
   const src = attr(el.dataUrl)
   const boxH = explicitHeightMm(scope)
   // 没有确定的框高（h:'auto'）时"框内"无从谈起 —— 退回缺省形态，不猜一个高度。
@@ -782,15 +832,34 @@ function resolveCodeValue(
   return { value: v, reason: '' }
 }
 
-/** 空内容 / 编码失败时的占位框：浅灰虚线 + 一句原因 */
-function codePlaceholderHtml(label: string, reason: string): string {
-  const caption = reason ? `${label}：${reason}` : label
+/**
+ * 元素"还没就绪"时的**通用占位框**（2026-09-24 第四批第 1 / 5 条）。
+ *
+ * 用户原话：「每个都长的不一样，导致表格变形严重……建议把附件、二维码、条形码、图片
+ * 保持画风一致」。画布端已经统一成 `.bp-el-cell__child-phbox`（标题 + 两行说明）；
+ * 而**打印端原来只有"码"有占位框** —— 图片在 `dataUrl` 为空时会输出 `<img src="">`
+ * （塌成一条细线，什么都看不见），附件又是另一套 ⇒ 三种长相并存。
+ *
+ * ⇒ 抽成这一份，**四种元素共用同一套结构与样式**：上行"它是什么"、下行"为什么没内容"。
+ *
+ * ⚠️ 同时输出 `data-ph` 与（码专用的）`data-code-ph`：后者有既有断言在用，不能拆掉。
+ */
+function placeholderHtml(label: string, reason: string, codeKind = false): string {
   return (
-    `<div data-code-ph="1" style="width:100%;height:100%;min-height:${px(10)};box-sizing:border-box;` +
-    `border:${px(0.3)} dashed #d0d3d9;background:#fafbfc;display:flex;align-items:center;justify-content:center;` +
-    `padding:${px(1)};text-align:center;font-family:${attr(FONT_STACK)};font-size:${pxPt(7)};color:${MUTED_COLOR};` +
-    `${TEXT_FLOW}">${escapeHtml(caption)}</div>`
+    `<div data-ph="1"${codeKind ? ' data-code-ph="1"' : ''} style="width:100%;height:100%;` +
+    `min-height:${px(10)};box-sizing:border-box;border:${px(0.3)} dashed #d0d3d9;background:#fafbfc;` +
+    `display:flex;flex-direction:column;align-items:center;justify-content:center;gap:${px(0.6)};` +
+    `padding:${px(1)};text-align:center;font-family:${attr(FONT_STACK)};font-size:${pxPt(7)};` +
+    `color:${MUTED_COLOR};${TEXT_FLOW}">` +
+    `<span>${escapeHtml(label)}</span>` +
+    (reason ? `<span style="color:#8a8f99;">${escapeHtml(reason)}</span>` : '') +
+    `</div>`
   )
+}
+
+/** 空内容 / 编码失败时的占位框（码专用入口，转调通用实现） */
+function codePlaceholderHtml(label: string, reason: string): string {
+  return placeholderHtml(label, reason, true)
 }
 
 /** 元素高度（mm）：'auto' 时返回 null，由调用方决定兜底值 */
@@ -957,8 +1026,12 @@ function renderCellContent(
       const childScope: RenderScope = {
         ...scope,
         widthMm: childBoxWidthMm(child, cellWidthMm),
-        // 格内没有"固定行高"这回事（行高由内容撑），所以不给高度 —— 高度约束在格内不适用
-        heightMm: childHeightMm(child) ?? undefined,
+        /*
+         * ⚠️ 盒子高度一律走 `childBoxHeightMm`（2026-09-24 第四批 ④）：
+         * 它把 `h: 'auto'` 也当成默认高（18mm）—— 格内"由内容决定"等于"把行撑破"，
+         * 于是**老模板**（拖入时存下的 `'auto'`）不必让用户重拖，渲染时就自动变好。
+         */
+        heightMm: childBoxHeightMm(child),
       }
       const r = renderElement(child, childScope, ctx)
       warnings.push(...r.warnings)
@@ -975,11 +1048,16 @@ function renderCellContent(
        *    不是"样式对象序列化器"。传对象进去会得到 `style="[object Object]"`
        *    ⇒ 浏览器整条丢弃 ⇒ 产物里**不报错**，只是"改动看起来没生效"。
        *    （第一版就是这么写的：`w=50` 在画布上生效、打印出来还是 100%，差一点就漏出去。）
-       *    数值都来自 `childWidthPct` / `childHeightMm`：它们已经把 NaN / 越界夹掉了。
+       *    数值都来自 `childWidthPct` / `childBoxHeightMm`：它们已经把 NaN / 越界夹掉了。
        */
-      const boxH = childHeightMm(child)
-      const boxStyle =
-        `width:${round3(childWidthPct(child))}%;` + (boxH != null ? `height:${px(boxH)};overflow:hidden;` : '')
+      /*
+       * ⚠️ 盒子**始终给高度 + 裁切**（2026-09-24 第四批 ④）。
+       *
+       * 这就是"**不把单元格撑变形**"的那一刀：`h: 'auto'` 也走默认高（18mm），
+       * 所以一张 800×1200 的竖图进格子只会占 18mm 高，而不是把整行撑到上百毫米。
+       * 内容怎么适应这个盒子由元素自己的 `fit` 决定（图片 / 附件默认 `contain` = 等比、不拉伸）。
+       */
+      const boxStyle = `width:${round3(childWidthPct(child))}%;height:${px(childBoxHeightMm(child))};overflow:hidden;`
       return `<div style="${boxStyle}">${r.html}</div>`
     })
     .join('')
@@ -1320,6 +1398,31 @@ export function renderLoopTableRows(
   )
 }
 
+/**
+ * 打印用的复选框：一个方框 + 勾选时的对勾。
+ *
+ * 用 CSS 边框 + `✓` 字符，而不是 SVG：在任何打印引擎里表现一致，
+ * 而且尺寸从**字号**换算（`ptToMm(fontSizePt) * 1.15`）⇒ 用户改了字号它跟着变，不会错位。
+ *
+ * ⚠️ 画布上**不画这个框**：编辑期字段显示的是 chip（字段名占位，见 `Canvas.tsx` 的 `renderInline`），
+ * 只有打印/预览才取真值。所以这里不存在"画布 / 打印两份实现"的分叉风险 ——
+ * 但**别**顺手给画布也加上，那会让用户在编辑期误以为那就是最终效果（字段名与值不是一回事）。
+ */
+function checkboxHtml(checked: boolean, style?: TextStyle): string {
+  const fsPt = finite(style?.fontSizePt, DEFAULT_FONT_PT)
+  const sizeMm = Math.max(1.6, ptToMm(fsPt) * 1.15)
+  const color = style?.color ?? DEFAULT_COLOR
+  const line = checked ? color : MUTED_COLOR
+  return (
+    `<span style="display:inline-block;width:${px(sizeMm)};height:${px(sizeMm)};box-sizing:border-box;` +
+    `border:${px(0.25)} solid ${line};border-radius:${px(0.4)};vertical-align:-0.16em;` +
+    `margin:0 ${px(0.35)};line-height:${px(sizeMm * 0.82)};text-align:center;` +
+    `font-size:${px(sizeMm * 0.8)};color:#ffffff;background:${checked ? color : 'transparent'};">` +
+    (checked ? '✓' : '') +
+    `</span>`
+  )
+}
+
 /** 单个元素 → HTML（不含定位信息，定位由 buildDocumentHtml 统一包裹） */
 export function renderElement(el: AnyElement, scope: RenderScope, ctx: RenderContext): RenderElementResult {
   const warnings: RenderWarning[] = []
@@ -1331,6 +1434,26 @@ export function renderElement(el: AnyElement, scope: RenderScope, ctx: RenderCon
     }
     case 'fieldBlock': {
       const val = resolveField(el.fieldId, el.fieldName, sc, ctx, warnings)
+      const fMeta = el.fieldId ? ctx.fieldMap.get(el.fieldId) : undefined
+      /*
+       * ⚠️ **复选框要画真实的方框**（2026-09-24 第四批第 3 条）。
+       *
+       * 用户截图：多维表格里是一个绿色勾选框，打印出来却是文字「否」。
+       * 根因：`renderCellValue` 的契约是"值 → **字符串**"，画不出框。
+       * 所以这里单开一条路：直接读**原始值**（`record.fields[fieldId] === true`）来定勾选态，
+       * 再交给 `checkboxHtml` 画一个方框 + 对勾。
+       */
+      if (fMeta && fieldMeta(fMeta.type).renderKind === 'checkbox') {
+        const raw = el.fieldId ? sc.record?.fields?.[el.fieldId] : undefined
+        /* ⚠️ 用 `isCheckedValue` 而不是 `=== true`：值可能是 1 / 'true' / '是'（见它的注释） */
+        const box = checkboxHtml(isCheckedValue(raw), el.style)
+        return {
+          html: `<div style="${attr(textCss(el.style, [TEXT_FLOW]))}">${escapeHtml(el.prefix ?? '')}${box}${escapeHtml(
+            el.suffix ?? '',
+          )}</div>`,
+          warnings,
+        }
+      }
       const flow = `<div style="${attr(textCss(el.style, [TEXT_FLOW]))}">${escapeHtml(el.prefix ?? '')}${escapeHtml(
         val,
       )}${escapeHtml(el.suffix ?? '')}</div>`

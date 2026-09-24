@@ -3720,6 +3720,22 @@
   line-height: var(--lh-base);
 }
 
+/*
+ * 「预计打印 N 条，本次仅展示前 M 条」（2026-09-24 第四批第 6 条）。
+ *
+ * 为什么值得单独一条样式：它是**唯一**告诉用户"你看到的页数 ≠ 真实打印页数"的地方。
+ * 混在灰色小字里会被当成噪音略过，所以给它自己的底色 + 独立一行 ——
+ * 底色用**提示色**而不是错误色（这不是错误，是正常的性能取舍）。
+ */
+.bp-preview__limit {
+  display: block;
+  margin-top: 4px;
+  padding: 4px var(--sp-2);
+  border-radius: 4px;
+  background: var(--warn-bg, #fff7e6);
+  color: var(--text-1);
+}
+
 .bp-preview__busy {
   color: var(--text-2);
 }

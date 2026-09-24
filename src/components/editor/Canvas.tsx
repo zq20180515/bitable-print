@@ -115,6 +115,8 @@ import { applySplitCell } from './table-actions'
 import type { AlignMode } from './useEditorState'
 // 格内子元素：复合 id（点击要选它自己）、百分比宽 / 固定高（渲染要认这两个口径）
 import { cellChildId, childHeightMm, childWidthPct, parseCellChildId } from './cell-child'
+/* 格内盒高的口径（`h:'auto'` 也走默认高）—— 与打印端共用同一份实现，见它的注释 */
+import { childBoxHeightMm } from '../../lib/cell-geometry'
 
 /**
  * 1pt = 1/72 inch → CSS px
@@ -2551,10 +2553,18 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
        * 而且细线意味着**点不中**，右键自然也就落到表格上去了（第 3 条那个"菜单还是表格设置"）。
        */
       if (!child.dataUrl) {
+        /*
+         * ⚠️ 文案结构与其它三种**逐字对齐**（2026-09-24 第四批第 1 条「保持画风一致」）：
+         * 标题（绿标）+ 主文案 + 副文案，**固定三行**。
+         *
+         * 原来这里只有两行，于是它的盒子比码 / 附件矮一截 —— 四种元素并排时高矮不齐，
+         * 用户读作"每个都长得不一样，导致表格变形严重"（他截的图里正是这个样子）。
+         */
         return (
           <span className="bp-el-cell__child-phbox is-warn" title="还没选择图片：在右侧属性面板里选一张">
-            <span className="bp-el-cell__child-phbox-title">图片</span>
-            <span>在右侧属性面板选择图片</span>
+            <span className="bp-el-cell__child-phbox-title">固定图片</span>
+            <span>还没选择图片</span>
+            <span>在右侧属性面板选择</span>
           </span>
         )
       }
@@ -2576,22 +2586,20 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         return <span className="bp-el-cell__child-code" dangerouslySetInnerHTML={{ __html: p.svg }} />
       }
       /*
-       * 画不出真码时（绑定字段 / 固定内容为空）给**占位盒**，与自由层同一套视觉语言
-       * （`bp-el-code--ph` 的角标 + 名称 + 说明），而不是只丢一行小灰字 ——
-       * 那一行字在格子里就是"窄条"，与格内其它元素完全不像同一类东西。
+       * ⚠️ 占位盒必须与图片 / 附件**同一套视觉**（2026-09-24 第四批第 1 条）。
+       *
+       * 用户原话：「每个都长的不一样，导致表格变形严重……建议把附件、二维码、条形码、图片保持画风一致」。
+       * 原来这里挂的是 `bp-el-code bp-el-code--ph` —— 那是**自由层**码占位盒的类，
+       * 于是格内凭空出现了第三种长相（绿框 + 橙色虚线 + 橙色文字），而图片/附件是素框 + 灰字。
+       * ⇒ 统一用 `.bp-el-cell__child-phbox`，与 `attach`、以及"还没选图"的 `image` 完全同款。
        */
       return (
-        <span
-          className={`bp-el-code bp-el-code--ph bp-el-cell__child-phbox${p.warn ? ' is-warn' : ''}`}
-          title={p.hint}
-        >
-          <span className="bp-el-code__body">
-            <span className="bp-el-code__badge">{p.badge}</span>
-            <span className="bp-el-code__name">{p.text}</span>
-            <span className="bp-el-code__note">
-              {child.source.kind === 'field' ? '打印时逐条生成' : '在右侧属性面板填写'}
-            </span>
-          </span>
+        <span className={`bp-el-cell__child-phbox${p.warn ? ' is-warn' : ''}`} title={p.hint}>
+          {/* 标题用**类型名**，与「固定图片 / 附件」同一口径（原来放的是 `p.badge` 状态角标，
+              于是四种元素里只有码的标题不是"它是什么"，观感上就"不是一个系列"） */}
+          <span className="bp-el-cell__child-phbox-title">{child.kind === 'qrcode' ? '二维码' : '条形码'}</span>
+          <span>{p.text}</span>
+          <span>{child.source.kind === 'field' ? '打印时逐条生成' : '在右侧属性面板填写'}</span>
         </span>
       )
     }
@@ -2754,7 +2762,12 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
                             */}
                             {(c.children ?? []).slice(0, MAX_CELL_CHILDREN).map((child) => {
                               const pct = childWidthPct(child)
-                              const boxH = childHeightMm(child)
+                              /*
+                               * ⚠️ 与**打印端同口径**：`childBoxHeightMm` 把 `h:'auto'` 也当成默认高
+                               * （2026-09-24 第四批 ④「不把单元格撑变形」）。
+                               * 这一条必须两边一致 —— 否则就是"画布看着 18mm、打印出来把行撑破"。
+                               */
+                              const boxH = childBoxHeightMm(child)
                               return (
                                 <span
                                   key={child.id}
@@ -2773,7 +2786,10 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
                                    */
                                   style={{
                                     width: `${pct}%`,
-                                    ...(boxH != null ? { height: `${boxH}mm`, overflow: 'hidden' } : null),
+                                    /* ⚠️ 盒子**始终**有高度 + 裁切（2026-09-24 第四批 ④）——
+                                       这就是"不把单元格撑变形"的那一刀，与打印端 `renderCellContent` 逐字对应 */
+                                    height: `${boxH}mm`,
+                                    overflow: 'hidden',
                                   }}
                                   title={`${elementLabel(child)} · 单击选中，可拖到别的格子或拖出到画布`}
                                   onPointerDown={(ev) => onChildPointerDown(ev, el, c.id, child)}
