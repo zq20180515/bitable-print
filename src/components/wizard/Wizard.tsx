@@ -1328,7 +1328,16 @@ function TemplateCard({ t, w, onNotice }: { t: TemplateListItem; w: W; onNotice:
           </button>
           <button
             onClick={async () => {
+              /*
+               * ⚠️ `res` 现在可能是 `null`（2026-10-02 体检 P0-2）。
+               * `copyToTable` 改成内部兜错了：失败时它自己 `setTplHint` 并返回 `null`，
+               * 所以这里**只判空、不报错** —— 提示已经由它给出了，别重复弹。
+               */
               const res = await w.copyToTable(t.recordId, t.targetTableId, t.targetTableName)
+              if (!res) {
+                setMenu(false)
+                return
+              }
               onNotice(
                 res.targetTableMissing
                   ? '目标数据表已不存在，已复制并标记'

@@ -93,24 +93,56 @@ export function serializeDoc(doc: TemplateDoc): string {
 }
 
 /**
- * 模板 JSON 的建议上限，超过时提示（E-16 / F6-05）。
+ * 模板 JSON 的建议上限，超过时阻断（E-16 / F6-05）。
  *
- * ⚠️ **2026-09-21 查证：这个上限从没被检查过** —— 它和下面的 `docJsonBytes()` 全项目
- *    没有任何调用方。也就是说 **F6-05「写入前大小检查」这条需求没接线**：
- *    度量工具是齐的，但保存路径（`serializeDoc` → `createTemplateRow`）没有调用它。
+ * ✅ **2026-10-02 已接线**（此前从 2026-09 上架起一直没被检查过）。
+ * 接线方式是 `assertTemplateSize()`（见下方 `docJsonBytes` 之后），
+ * 由 **`createTemplate` 与 `saveTemplate` 两处**调用：
  *
- * ⇒ 清死导出时**特意留着这两个**，而不是当死代码删掉：它们是目前这条缺口**唯一的痕迹**，
- *   删了就再没人知道 F6-05 差这一步。要做的时候在 `createTemplate` / `saveTemplate`
- *   里判一次即可（超限走 E-16 的阻断提示，UI 侧已有提示位）。
+ *   · 只拦新建的话，用户可以把一个正常模板逐步编辑到超限再保存 ⇒ **照样能写进去**；
+ *   · 所以**两条写入路径都拦**，且失败时把"原因 + 怎么改"一起说出来。
+ *
+ * ⚠️ 当初清死导出时特意留着这两个常量/函数（而不是当死代码删）——
+ *    正因为它们留着，这次才知道 F6-05 差的就是这一刀。**这个习惯要保留**：
+ *    一个"实现了但没接线"的功能，注释就是它唯一的痕迹。
  */
 export const TEMPLATE_SIZE_WARN_BYTES = 500 * 1024
 
-/** 估算 JSON 字节数（UTF-8）——用于 F6-05 的"写入前大小检查"（⚠️ 尚未接线，见上） */
+/** 估算 JSON 字节数（UTF-8）——用于 F6-05 的"写入前大小检查" */
 export function docJsonBytes(json: string): number {
   // eslint-disable-next-line no-restricted-globals
   const enc = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null
   if (enc) return enc.encode(json).length
   return json.length // 极端环境兜底：按字符数估
+}
+
+/**
+ * **写入前的大小检查**（F6-05 / E-16，2026-10-02 接线）。
+ *
+ * ── 为什么需要它 ──────────────────────────────────────────────────────
+ * 模板的 JSON 里会把**固定图片**存成 dataURL（`image` 元素的 `dataUrl`）。
+ * 一张手机照片转 base64 大约 1.3 倍膨胀 ⇒ 几张图就能把模板撑到几 MB。
+ * 而飞书单元格有大小限制、浏览器也会在读写大字段时明显卡顿 ——
+ * **不检查的后果是"写进去了才发现打不开"**，比"保存时被拦下"糟糕得多。
+ *
+ * ── 为什么是抛错而不是警告 ────────────────────────────────────────────
+ * 超限的模板**即使写进去也用不了**（读回来会失败）。让它"保存成功但打不开"
+ * 只是把故障推迟到用户下次打开时，且那时更难定位。⇒ 按 PRD 走 E-16 **阻断**，
+ * 并把**原因和解法**一起说出来 —— 只说"太大了"用户不知道该怎么办。
+ *
+ * ⚠️ 这个函数**必须同时被 `createTemplate` 与 `saveTemplate` 调用**：
+ *    只拦新建的话，用户可以把一个正常模板逐步编辑到超限再保存，照样能写进去。
+ */
+export function assertTemplateSize(docJson: string): void {
+  const bytes = docJsonBytes(docJson)
+  if (bytes <= TEMPLATE_SIZE_WARN_BYTES) return
+  const mb = (bytes / 1024 / 1024).toFixed(2)
+  const limit = (TEMPLATE_SIZE_WARN_BYTES / 1024 / 1024).toFixed(2)
+  throw new Error(
+    `模板数据 ${mb}MB，超过 ${limit}MB 上限，无法保存。` +
+      `常见原因是模板里"固定"了尺寸较大的图片（图片会以 base64 形式存在模板里）。` +
+      `建议改用附件字段取图：删掉固定图片，从左侧字段面板把附件字段拖进版式。`,
+  )
 }
 
 export type DocParseKind =
@@ -471,12 +503,15 @@ export class TemplateStore {
 
   async createTemplate(input: CreateTemplateInput): Promise<string> {
     const doc = input.doc ?? emptyTemplate(input.kind)
+    /* ⚠️ F6-05 / E-16：**先量再写**（见 assertTemplateSize 的注释） */
+    const docJson = serializeDoc(doc)
+    assertTemplateSize(docJson)
     return this.ds.createTemplateRow(await this.tableId(), {
       name: await this.uniqueName(input.targetTableId, input.name),
       kind: input.kind,
       targetTableName: input.targetTableName,
       targetTableId: input.targetTableId,
-      docJson: serializeDoc(doc),
+      docJson,
       paper: buildPaperLabel(doc.pageSetup),
     })
   }
@@ -494,13 +529,16 @@ export class TemplateStore {
     doc: TemplateDoc
   }): Promise<string> {
     if (rec.recordId) {
+      /* ⚠️ F6-05 / E-16：更新这条路**也要拦** —— 否则用户能把模板逐步编辑到超限再保存 */
+      const docJson = serializeDoc(rec.doc)
+      assertTemplateSize(docJson)
       await this.ds.updateTemplateRow(await this.tableId(), rec.recordId, {
         // 独立窗口保存回传的 `res.name` 也走这里 ⇒ 必须查重（见 uniqueName 的注释）
         name: await this.uniqueName(rec.targetTableId, rec.name, rec.recordId),
         kind: rec.kind,
         targetTableName: rec.targetTableName,
         targetTableId: rec.targetTableId,
-        docJson: serializeDoc(rec.doc),
+        docJson,
         paper: buildPaperLabel(rec.doc.pageSetup),
       })
       return rec.recordId

@@ -258,7 +258,10 @@ export function Toolbar(props: ToolbarProps) {
         />
         <Num
           value={sizeValue}
-          min={6}
+          /* ⚠️ 下界从 6pt 放宽到 2pt（2026-10-01 第五批第 1 条）：
+             用户要在标签纸这类小纸张上排版，6pt 仍然偏大 —— 小标签上一行只能放几个字。
+             三处下界必须一致：这里 / Inspector 的元素字号 / Inspector 的单元格字号。 */
+          min={2}
           max={72}
           step={0.5}
           suffix="pt"

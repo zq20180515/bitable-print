@@ -641,37 +641,67 @@ export function useWizardState({
     [store, kind, targetTableId, targetTableName, loadTemplates],
   )
 
+  /*
+   * ⚠️ 下面四条**必须各自 try/catch 并把原因说出来**（2026-10-02 体检 P0-2）。
+   *
+   * 它们原来的样子是裸 `await store.xxx()` —— 而调用点（`Wizard.tsx` 的卡片菜单）用的是
+   * `void w.renameTemplate(...)` / 裸 `await`，**两边都没有 catch**。
+   * 于是模板被他人删除、配置损坏、无权限时：**点了没反应，也没有任何提示** ——
+   * 这正是本项目反复强调的"最坏的失败方式"（用户会认为插件坏了）。
+   *
+   * 修法：统一在**这里**兜住（一处兜四条，不给四个调用点各写一遍的机会），
+   * 失败走 `setTplHint` —— 向导底栏已经有这个提示位，`commitEditor` 也是这么做的。
+   * ⚠️ 失败**不 rethrow**：调用点在 `void` 上下文里，rethrow 只会变成 unhandled rejection。
+   */
   const renameTemplate = useCallback(
     async (recordId: string, name: string) => {
-      await store.renameTemplate(recordId, name)
-      await loadTemplates()
+      try {
+        await store.renameTemplate(recordId, name)
+        await loadTemplates()
+      } catch (e) {
+        setTplHint({ ok: false, text: `重命名失败：${e instanceof Error ? e.message : String(e)}` })
+      }
     },
     [store, loadTemplates],
   )
 
   const duplicateTemplate = useCallback(
     async (recordId: string, newName?: string) => {
-      const id = await store.duplicateTemplate(recordId, newName)
-      // 同上：选中落到复制出来的那一条
-      await loadTemplates(id)
-      return id
+      try {
+        const id = await store.duplicateTemplate(recordId, newName)
+        // 同上：选中落到复制出来的那一条
+        await loadTemplates(id)
+        return id
+      } catch (e) {
+        setTplHint({ ok: false, text: `另存副本失败：${e instanceof Error ? e.message : String(e)}` })
+        return null
+      }
     },
     [store, loadTemplates],
   )
 
   const deleteTemplates = useCallback(
     async (ids: string[]) => {
-      await store.deleteTemplates(ids)
-      await loadTemplates()
+      try {
+        await store.deleteTemplates(ids)
+        await loadTemplates()
+      } catch (e) {
+        setTplHint({ ok: false, text: `删除失败：${e instanceof Error ? e.message : String(e)}` })
+      }
     },
     [store, loadTemplates],
   )
 
   const copyToTable = useCallback(
     async (recordId: string, toTableId: string, toTableName: string) => {
-      const res = await store.copyToTable(recordId, toTableId, toTableName)
-      if (toTableId === targetTableId) await loadTemplates()
-      return res
+      try {
+        const res = await store.copyToTable(recordId, toTableId, toTableName)
+        if (toTableId === targetTableId) await loadTemplates()
+        return res
+      } catch (e) {
+        setTplHint({ ok: false, text: `复制到该数据表失败：${e instanceof Error ? e.message : String(e)}` })
+        return null
+      }
     },
     [store, loadTemplates, targetTableId],
   )

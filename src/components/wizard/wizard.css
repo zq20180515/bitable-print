@@ -1112,6 +1112,83 @@ nav.wiz-steps {
 
 /* ---------------- Word 上传 ---------------- */
 
+/*
+ * Word 导入的「兼容语法」开关（F3-15，2026-10-02 接线）。
+ *
+ * ⚠️ 它必须在**拖放区上方**、且视觉上独立成行：这个开关改变的是
+ * "**什么样的模板能被解析**"，而不是"导入之后的附加选项"。
+ * 放在拖放区下面会被当成后者 —— 用户不会在看文件之前注意到它，
+ * 而那正是他最需要它的时候（模板识别不出占位符时才会想起来找）。
+ */
+.wiz-compat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  font-size: var(--fs-sm, 12px);
+  color: var(--text-1);
+}
+
+.wiz-compat code {
+  padding: 0 4px;
+  border-radius: var(--r-sm, 4px);
+  background: var(--surface-3, rgba(31, 35, 41, 0.06));
+  font-size: 0.94em;
+}
+
+.wiz-compat-note {
+  margin: 0 0 12px;
+}
+
+/*
+ * Word 导入的「自定义循环标签」（E-2，2026-10-02 接线）。
+ *
+ * 用 `<details>` 折叠而不是常显：**多数用户不需要它**（内置标签已覆盖常见写法），
+ * 常显会喧宾夺主；而真正需要的人（自家模板用了私有标签）会主动展开。
+ * ⚠️ `<summary>` 要给足纵向内边距 —— 折叠块的常见毛病是"只有文字那一行能点中"。
+ */
+.wiz-custom-tags {
+  margin: 0 0 12px;
+  font-size: var(--fs-sm, 12px);
+}
+
+.wiz-custom-tags > summary {
+  padding: 4px 0;
+  color: var(--text-2, var(--text-1));
+  cursor: pointer;
+  user-select: none;
+}
+
+.wiz-custom-tags-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0 0 16px;
+}
+
+.wiz-custom-tags-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wiz-custom-tags-row > span {
+  flex: 0 0 auto;
+  color: var(--text-2, var(--text-1));
+}
+
+.wiz-custom-tags-row > input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--border-1, rgba(31, 35, 41, 0.16));
+  border-radius: var(--r-sm, 4px);
+  background: var(--bg-1, #fff);
+  color: var(--text-1);
+  font: inherit;
+}
+
 .wiz-drop {
   display: flex;
   flex-direction: column;

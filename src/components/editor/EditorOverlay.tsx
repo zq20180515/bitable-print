@@ -148,6 +148,25 @@ export function EditorOverlay({
    *    `EditorShell` 的 effect 依赖它，每次渲染换新函数会导致重复注册（无害但脏）。
    */
   const escapeLayerRef = useRef<(() => boolean) | null>(null)
+  /**
+   * 「完成」那条路的 ref 镜像（2026-10-01 第五批第 2 条）。
+   *
+   * 为什么要镜像：Esc 的监听器（下面那个 effect）定义在 `requestDone` **之前**，
+   * 直接闭包会踩"used before declaration"。用 ref 把顺序问题绕开，
+   * 同时避免每渲染换函数导致监听器重绑。
+   */
+  const doneRef = useRef<(() => void | Promise<void>) | null>(null)
+  /**
+   * 「长按 Esc 才退真全屏」的计时器（2026-10-01 第五批第 2 条）。
+   *
+   * ⚠️ 单击必须**立即**响应（逐级退），所以不能用"等一会儿看是不是长按"那种写法 ——
+   * 那会让最常用的单击动作卡 2 秒。这里的做法是：单击照旧立即逐级退，
+   * **同时**起一个 2 秒计时；没松开才追加"退真全屏"。
+   * 长按的意图本来就是"退大屏"，顺带退一层是可接受的代价。
+   */
+  const escHoldTimer = useRef<number | null>(null)
+  /** 长按判定阈值（用户口径："长按 ESC 约 2 秒"） */
+  const ESC_HOLD_MS = 2000
   const registerEscapeLayer = useRef((fn: (() => boolean) | null): void => {
     escapeLayerRef.current = fn
   }).current
@@ -259,6 +278,25 @@ export function EditorOverlay({
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape') return
       /*
+       * ⚠️ **长按 Esc（约 2 秒）= 退出真全屏**（2026-10-01 第五批第 2 条）。
+       *
+       * 用户原话：「我更想保留当前的真全屏效果……长按 ESC（约 2 秒）才会退出」。
+       *
+       * 为什么必须这么做：真全屏下的 Esc 是**浏览器行为**，一按就退全屏 ⇒ iframe 视口缩回
+       * 侧边栏 ⇒ 用户看到"ESC 把我缩回小窗了"，而我们的状态还以为盖满着（按钮文字随之错位）。
+       * `enterFullscreen` 会顺带调 Keyboard Lock 把 Esc 借过来；**借不到时（宿主 iframe 没给
+       * `allow="keyboard-lock"`）这道判定就是唯一兜底** —— 两者叠加，短按绝不会退出全屏。
+       *
+       * ⚠️ `e.repeat`：长按会**连续**触发 keydown，不挡掉会起一堆计时器。
+       */
+      if (!e.repeat) {
+        if (escHoldTimer.current !== null) window.clearTimeout(escHoldTimer.current)
+        escHoldTimer.current = window.setTimeout(() => {
+          escHoldTimer.current = null
+          void exitFullscreen()
+        }, ESC_HOLD_MS)
+      }
+      /*
        * ⚠️ **先给编辑层一次机会**（2026-09-23 真机反馈第 5 条）。
        *
        * 顺序反了就是用户报的那个现象："全屏画布下，预览时按 Esc 会直接缩回小尺寸页面"。
@@ -286,15 +324,61 @@ export function EditorOverlay({
        * 真全屏下的 Esc 是 **UA 行为**（`preventDefault` 拦不住），浏览器仍会退出全屏；
        * 那一半由 `onFullscreenChange` 保持 `overlay` 档来兜住，观感上画布纹丝不动。
        */
+      /*
+       * ⚠️ **一层都退不了时，Esc 就是「退出编辑」**（2026-10-01 第五批第 2 条）。
+       *
+       * 用户期望（原话）：「在全屏预览界面，点击 ESC 应该是回到全屏画布编辑页面；
+       * 在全屏画布编辑页面点击 ESC 应当视为退出编辑，**提示是否保存**，
+       * 点击保存后回到模板保存界面」。
+       *
+       * 上一版这里是**什么都不做**（注释写着"就当它没被按过"）—— 那是为了修
+       * "按 Esc 意外关掉编辑器"。但那个问题的真身是"**没有逐级退、一按就直接关**"；
+       * 现在逐级退已经完整了（预览 → 节点 → 单元格 → 表格编辑态 → 元素选中），
+       * 最外层再按一次，正是用户想"收工"的自然动作 ⇒ 改成走**完成那条路**。
+       *
+       * 分工要说清：
+       *   · **全屏预览** → 第 1 层就退掉（`escapeStep` 的 `preview.open` 分支）⇒ 回全屏画布 ✅
+       *   · **全屏画布、有未保存改动** → 弹确认条（保存 / 放弃）✅
+       *   · **全屏画布、没有改动** → 直接完成退出 ✅
+       *   · 落库中（`saving`）→ 整条路径挡掉，避免重复提交（新建会建出两条模板）
+       */
       e.preventDefault()
+      if (saving) return
+      if (dirty) {
+        setConfirmingClose(true)
+        return
+      }
+      void doneRef.current?.()
+    }
+    /** 松开 Esc ⇒ 取消长按计时（**单击走的就是这个路径**） */
+    const onUp = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      if (escHoldTimer.current !== null) {
+        window.clearTimeout(escHoldTimer.current)
+        escHoldTimer.current = null
+      }
     }
     window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
+    window.addEventListener('keyup', onUp, true)
+    return () => {
+      window.removeEventListener('keydown', onKey, true)
+      window.removeEventListener('keyup', onUp, true)
+      /* 卸载/依赖变化时别把计时器留在后台 —— 它到点会去 `exitFullscreen()` */
+      if (escHoldTimer.current !== null) {
+        window.clearTimeout(escHoldTimer.current)
+        escHoldTimer.current = null
+      }
+    }
     /*
-     * 依赖是空的：这条路只读一个 ref（`escapeLayerRef`），不闭包任何 state ——
-     * 留 `dirty` / `saving` 在这里只会让监听器被无谓地重绑。
+     * ⚠️ **依赖从 `[]` 改成 `[saving, dirty]`**（2026-10-01 第五批第 2 条）。
+     *
+     * 原来注释写的是"这条路只读一个 ref，不闭包任何 state，留 dirty/saving 只会无谓重绑"。
+     * 但 Esc 的最外层现在要**读 dirty、并检查 saving**（没改动直接完成退出、有改动先问）——
+     * 不把这两个进依赖，监听器会永远看到**首次渲染时的旧值**：
+     * 用户改完东西按 Esc，`dirty` 还是 `false` ⇒ **不弹确认、直接保存退出**，
+     * 这正是"改了没提示"的那类静默 bug。重绑的成本远小于读到旧值的代价。
      */
-  }, [])
+  }, [saving, dirty])
 
   /**
    * 切大小。
@@ -367,6 +451,9 @@ export function EditorOverlay({
     if (ok) void exitFullscreen()
   }
 
+  /* Esc 的最外层要调它（见上面那个 keydown effect 的注释），用 ref 避开声明顺序 */
+  doneRef.current = finish
+
   const status = fullscreenStatusText(support, isFullscreen)
 
   /**
@@ -412,16 +499,36 @@ export function EditorOverlay({
   )
 
   const confirmLayer = confirmingClose ? (
-    <div className="bp-fs-confirm" role="dialog" aria-modal="true" aria-label="放弃未保存的改动">
+    <div className="bp-fs-confirm" role="dialog" aria-modal="true" aria-label="退出编辑">
       <div className="bp-fs-confirm-card">
-        <p className="bp-fs-confirm-title">{dirty ? '这次编辑还没保存，确定退出？' : '确定退出编辑？'}</p>
+        {/*
+          ⚠️ 文案与按钮按用户口径改（2026-10-01 第五批第 2 条）。
+          他要的是「**提示是否保存**，点击保存后回到模板保存界面」——
+          所以这里必须给**三条路**（保存并退出 / 放弃改动 / 继续编辑），
+          原来只有「放弃 / 继续编辑」两条 ⇒ 想保存的人只能先关掉确认再点顶栏的「完成」。
+        */}
+        <p className="bp-fs-confirm-title">{dirty ? '这次编辑还没保存，要保存吗？' : '确定退出编辑？'}</p>
         <div className="bp-fs-confirm-actions">
           <button type="button" className="app-btn sm" onClick={() => setConfirmingClose(false)}>
             继续编辑
           </button>
           <button type="button" className="app-btn sm danger" onClick={close}>
-            {dirty ? '放弃改动并退出' : '退出'}
+            {dirty ? '放弃改动' : '退出'}
           </button>
+          {dirty ? (
+            <button
+              type="button"
+              className="app-btn sm primary"
+              /* 落库期间锁住：连点会走两次 `onDone`，新建那条路会建出两条模板 */
+              disabled={saving}
+              onClick={() => {
+                setConfirmingClose(false)
+                void finish()
+              }}
+            >
+              保存并退出
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

@@ -38,6 +38,10 @@ import {
   type TemplateKind,
   type TextStyle,
   DEFAULT_TEXT_STYLE,
+  /* ⚠️ 表格/单元格的兜底值 —— 与打印端 `render/html.ts` 引用**同一份**（2026-10-02 体检 P1） */
+  BOLD_FONT_WEIGHT,
+  DEFAULT_TABLE_BORDER_PT,
+  DEFAULT_TABLE_LINE,
 } from '../../lib/types'
 import { fieldMeta } from '../../lib/field-types'
 import type { FieldMeta } from '../../lib/data-source'
@@ -448,7 +452,7 @@ function textCss(el: AnyElement): CSSProperties {
   return {
     fontFamily: fontCss(s?.fontFamily),
     fontSize: ptToPx(finite(s?.fontSizePt, DEFAULT_TEXT_STYLE.fontSizePt)),
-    fontWeight: s?.bold ? 600 : 400,
+    fontWeight: s?.bold ? BOLD_FONT_WEIGHT : 400,
     fontStyle: s?.italic ? 'italic' : 'normal',
     textDecoration: deco || 'none',
     color: s?.color || DEFAULT_TEXT_STYLE.color,
@@ -475,7 +479,7 @@ function nodeCss(s?: TextStyle): CSSProperties | undefined {
   const out: CSSProperties = {}
   if (s.fontFamily) out.fontFamily = fontCss(s.fontFamily)
   if (typeof s.fontSizePt === 'number' && Number.isFinite(s.fontSizePt)) out.fontSize = ptToPx(s.fontSizePt)
-  if (s.bold !== undefined) out.fontWeight = s.bold ? 600 : 400
+  if (s.bold !== undefined) out.fontWeight = s.bold ? BOLD_FONT_WEIGHT : 400
   if (s.italic !== undefined) out.fontStyle = s.italic ? 'italic' : 'normal'
   if (s.underline !== undefined || s.strike !== undefined) {
     out.textDecoration =
@@ -523,9 +527,15 @@ function tableCss(el: TableElement): {
   // 没写线色时的兜底必须和渲染层一致（render/html.ts 用的是 #d0d3d9）。
   // 原来这里兜的是 var(--paper-line) —— 那**同时也是网格线的颜色**，于是"没设过线色的表格"
   // 画出来和网格几乎同色，用户根本分不清哪条是表格、哪条是网格。
-  const w = `${nz(ptToPx(finite(el.border.widthPt, 0.75)), 1)}px solid ${el.border.color || '#d0d3d9'}`
+  /*
+   * ⚠️ `?.` 不是洁癖（2026-10-02 体检 P0-3）：`types.ts` 里 `border` 声明为必填，
+   * 但 `template-store.coerceDoc` **不对表格元素做深度校验** —— 老模板 / 手改过 JSON 缺这个字段时，
+   * 这里会抛 `TypeError` ⇒ **整个编辑器白屏**（不是"某个元素不显示"，是整页崩）。
+   * 打印端一直写的是 `el.border?.widthPt`，说明作者本来也认为它可能为空。
+   */
+  const w = `${nz(ptToPx(finite(el.border?.widthPt, DEFAULT_TABLE_BORDER_PT)), 1)}px solid ${el.border?.color || DEFAULT_TABLE_LINE}`
   const none = 'none'
-  const mode = el.border.mode
+  const mode = el.border?.mode
   const lastRow = el.rows.length - 1
   const lastCol = el.colWidthsMm.length - 1
   const table: CSSProperties = {
@@ -544,7 +554,7 @@ function tableCss(el: TableElement): {
      */
     if (cellBorders) {
       const e = resolveCellEdges(mode, cellBorders, { row: r, rows: el.rows.length, col: c, cols: el.colWidthsMm.length })
-      const cw = `${nz(ptToPx(finite(cellBorders.widthPt ?? el.border.widthPt, 0.75)), 1)}px solid ${cellBorders.color || el.border.color || '#d0d3d9'}`
+      const cw = `${nz(ptToPx(finite(cellBorders.widthPt ?? el.border?.widthPt, DEFAULT_TABLE_BORDER_PT)), 1)}px solid ${cellBorders.color || el.border?.color || DEFAULT_TABLE_LINE}`
       return {
         borderTop: e.top ? cw : none,
         borderRight: e.right ? cw : none,
@@ -2018,6 +2028,48 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           : null
       return [
         { id: 'cell:edit', label: '编辑此单元格', hint: '双击同效' },
+        /*
+         * ⚠️ **右键直接改单元格字号**（2026-10-01 第五批 · 补齐"所有能调字号的地方"）。
+         *
+         * 用户要求的是"在所有可以调整字符大小的**字段**、元素的右键菜单中"都能改字号 ——
+         * 表格单元格正是承载字段的地方，缺了它这一条只算做了一半。
+         * 写法与 Inspector 的 `patchCellStyle` 同源（`onMerge` + `updateCell`），
+         * 区别只是那里走右侧面板、这里走右键菜单。
+         * ⚠️ 用条件展开而不是空项占位：`table` / `loc` 拿不到时**这一项根本不出现**，
+         *    比渲染一个点不动的"字号"诚实（本项目对"灰控件"一贯是这个态度）。
+         */
+        ...(table && table.kind === 'table' && loc
+          ? [
+              {
+                id: 'cell:fontsize',
+                label: '字号',
+                input: {
+                  value: typeof loc.cell.style?.fontSizePt === 'number' ? loc.cell.style.fontSizePt : 10.5,
+                  min: 2,
+                  max: 72,
+                  step: 0.5,
+                  suffix: 'pt',
+                  /* 实时生效 + 整轮合并成一次撤销步（见元素那条的同一段注释） */
+                  onInput: (v: number) =>
+                    onMerge(tableId, {
+                      rows: updateCell(table.rows, cellId, {
+                        style: { ...(loc.cell.style ?? {}), fontSizePt: v },
+                      }),
+                    }),
+                  onCommit: (v: number) =>
+                    onMerge(
+                      tableId,
+                      {
+                        rows: updateCell(table.rows, cellId, {
+                          style: { ...(loc.cell.style ?? {}), fontSizePt: v },
+                        }),
+                      },
+                      `cellfs:${cellId}`,
+                    ),
+                },
+              } as CtxItem,
+            ]
+          : []),
         SEP,
         { id: 'cell:rowAbove', label: '在上方插入行' },
         { id: 'cell:rowBelow', label: '在下方插入行' },
@@ -2095,6 +2147,39 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             { id: 'el:z:backward', label: '下移一层', disabled: i <= 0 },
             { id: 'el:z:back', label: '置底', disabled: i <= 0 },
           ],
+        },
+        SEP,
+        /*
+         * ⚠️ **右键直接改字号**（2026-10-01 第五批新增）。
+         *
+         * 用户原话：「在所有可以调整字符大小的字段、元素的右键菜单中，增加调整字符大小的功能，
+         * **可以直接输入**」。有了它就不必「先选中 → 视线移到右侧面板 → 找那个输入框」——
+         * 全屏画布上视线跨半屏找面板确实累。
+         *
+         * ⚠️ `mergeKey` 用 `fs:<id>`：连续改字号要**合并成一次撤销步**，
+         *    否则调三次字号得按三次 Ctrl+Z 才退得回去（与项目里其它样式补丁同一套约定）。
+         * ⚠️ 初值从**当前元素**读（不是从默认值读）—— 否则一打开菜单就把用户的字号重置了。
+         */
+        {
+          id: 'el:fontsize',
+          label: '字号',
+          input: {
+            value: typeof list[i]?.style?.fontSizePt === 'number' ? list[i].style.fontSizePt : 10.5,
+            min: 2,
+            max: 72,
+            step: 0.5,
+            suffix: 'pt',
+            /*
+             * ⚠️ **实时生效**（2026-10-01 用户要求："点一下箭头，画布中的元素字段就立即调整到
+             * 对应的大小，这样方便实时预览"）。
+             *
+             * ⚠️ `onInput` 与 `onCommit` **必须用同一个 `mergeKey`**：
+             *    不带的话每按一下箭头都会新增一个撤销步，用户调 10 次要按 10 次 Ctrl+Z；
+             *    带了才会把整轮调整合并成**一步**。
+             */
+            onInput: (v) => onMerge(id, { style: { ...(list[i]?.style ?? {}), fontSizePt: v } }, `fs:${id}`),
+            onCommit: (v) => onMerge(id, { style: { ...(list[i]?.style ?? {}), fontSizePt: v } }, `fs:${id}`),
+          },
         },
         SEP,
         { id: 'el:delete', label: '删除', hint: 'Del', danger: true },
@@ -2734,7 +2819,27 @@ export const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
                         /* 按下即起"拖动扩选"（规格 四）。⚠️ 单元格从此不再兼任"拖整表"——
                            那个角色归表格手柄（规格 一），见 onCellPointerDown 的注释。 */
                         onPointerDown={(ev) => onCellPointerDown(ev, el, r, ci, c.id)}
-                        style={{ ...cell(r, ci), padding: pad, ...(c.style ? textCss({ ...el, style: c.style }) : null) }}
+                        /*
+                         * ⚠️ **单元格的垂直对齐要在画布上生效**（2026-10-02 项目体检 P1-1）。
+                         *
+                         * `textCss` 不输出 `vertical-align`，而 `.bp-el-cell` 的类样式写着
+                         * `vertical-align: top` ⇒ 用户在面板里设「居中 / 底端」时
+                         * **打印端生效（`html.ts` 有 `vAlignCss`）、画布端纹丝不动**。
+                         * 内联样式优先级高于类选择器 ⇒ 写在这里就够，不必动 CSS。
+                         * 取值口径与打印端 `vAlignCss` **逐字一致**（middle / bottom / 其余按 top）。
+                         */
+                        style={{
+                          ...cell(r, ci),
+                          padding: pad,
+                          ...(c.style ? textCss({ ...el, style: c.style }) : null),
+                          ...(c.style?.vAlign === 'middle'
+                            ? { verticalAlign: 'middle' as const }
+                            : c.style?.vAlign === 'bottom'
+                              ? { verticalAlign: 'bottom' as const }
+                              : c.style?.vAlign === 'top'
+                                ? { verticalAlign: 'top' as const }
+                                : null),
+                        }}
                         title={`第 ${r + 1} 行 第 ${ci + 1} 列 · 双击编辑内容`}
                         // 用 click 而不是 pointerdown 选单元格：pointerdown 一旦拦住冒泡，
                         // 整个表格就没法拖动了（表格几乎被单元格铺满，没有空白处可抓）

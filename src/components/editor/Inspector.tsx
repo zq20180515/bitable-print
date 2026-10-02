@@ -289,7 +289,7 @@ function NodePanel(props: InspectorProps & { selectedNode: NodeRef; node: Inline
           <Field label="字号" hint={`留空跟随外层；${outerName}当前 ${effSize}pt`}>
             <Num
               value={effSize}
-              min={6}
+              min={2}
               max={72}
               step={0.5}
               suffix="pt"
@@ -1441,7 +1441,7 @@ function CellPanel(props: InspectorProps & { element: TableElement; band: BandKe
           />
         </Field>
         <Field label="字号">
-          <Num value={finite(cs.fontSizePt, 10.5)} min={6} max={72} step={0.5} suffix="pt" ariaLabel="单元格字号" onChange={(v) => patchCellStyle({ fontSizePt: v }, `cellfs:${cell.id}`)} />
+          <Num value={finite(cs.fontSizePt, 10.5)} min={2} max={72} step={0.5} suffix="pt" ariaLabel="单元格字号" onChange={(v) => patchCellStyle({ fontSizePt: v }, `cellfs:${cell.id}`)} />
         </Field>
         <Field label="字形">
           <div className="bp-btnrow" role="group" aria-label="单元格字形">

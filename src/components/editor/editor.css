@@ -3939,6 +3939,26 @@
   gap: var(--sp-2);
 }
 
+/*
+ * 确认层的**主动作**（「保存并退出」，2026-10-01 第五批第 2 条）。
+ *
+ * ⚠️ 为什么需要这一条：`.app-btn.primary` 的样式只定义在向导底栏的作用域里
+ *    （`.wiz .wiz-foot .app-btn.primary`），**浮层里拿不到** —— 不给就会和「放弃改动」
+ *    长得一模一样，用户看不出哪个是主按钮，而这两个按钮的后果完全相反。
+ * 用全局文字色做底（不引入新色值）：深底白字，与旁边的描边按钮区分开。
+ */
+.bp-fs-confirm-actions .app-btn.primary {
+  background: var(--text-1, currentColor);
+  border-color: var(--text-1, currentColor);
+  color: #fff;
+  font-weight: 600;
+}
+
+.bp-fs-confirm-actions .app-btn.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 
 /*
  * 「缩小」后的内嵌模式（2026-09-20 用户要求）。
@@ -3983,6 +4003,44 @@
 
 .bp-ctx__row {
   position: relative;
+}
+
+/*
+ * 「字号」这一类**带输入框**的菜单项（2026-10-01 第五批）。
+ *
+ * ⚠️ 这一行不是 `<button>`（见 ContextMenu 里那段注释：按钮里放 input 是嵌套交互元素）。
+ *    所以间距、内边距都要自己补，才能和上下那些按钮项对齐 —— 对不齐会显得菜单"散架"。
+ */
+.bp-ctx__row--input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  color: var(--text-1);
+  cursor: default;
+}
+
+.bp-ctx__row--input .bp-ctx__label {
+  flex: 1 1 auto;
+}
+
+.bp-ctx__input {
+  width: 56px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-1, rgba(31, 35, 41, 0.16));
+  border-radius: var(--r-sm);
+  background: var(--bg-1, #fff);
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-sm, 12px);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.bp-ctx__input:focus {
+  outline: 2px solid var(--focus-ring, rgba(31, 35, 41, 0.35));
+  outline-offset: -1px;
 }
 
 .bp-ctx__item {

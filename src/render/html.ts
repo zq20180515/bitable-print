@@ -40,6 +40,11 @@ import {
   pageRenderSize,
   ptToMm,
   pxToMm,
+  /* ⚠️ 表格/单元格的兜底值 —— 与画布端 `Canvas.tsx` 引用**同一份**（2026-10-02 体检 P1） */
+  BOLD_FONT_WEIGHT,
+  DEFAULT_CELL_PADDING_MM,
+  DEFAULT_TABLE_BORDER_PT,
+  DEFAULT_TABLE_LINE,
 } from '../lib/types'
 import type { RecordItem } from '../lib/data-source'
 import {
@@ -165,7 +170,7 @@ function textCss(style: TextStyle | undefined, over: string[] = []): string {
   const family = s.fontFamily && s.fontFamily !== 'system' ? String(s.fontFamily) : FONT_STACK
   parts.push(`font-family:${family}`)
   parts.push(`font-size:${pxPt(s.fontSizePt ?? DEFAULT_FONT_PT)}`)
-  if (s.bold) parts.push('font-weight:700')
+  if (s.bold) parts.push(`font-weight:${BOLD_FONT_WEIGHT}`)
   if (s.italic) parts.push('font-style:italic')
   const deco: string[] = []
   if (s.underline) deco.push('underline')
@@ -200,8 +205,19 @@ function inlineCss(style: TextStyle | undefined): string {
   const s = style ?? {}
   const parts: string[] = []
   if (s.fontFamily && s.fontFamily !== 'system') parts.push(`font-family:${s.fontFamily}`)
-  parts.push(`font-size:${pxPt(s.fontSizePt ?? DEFAULT_FONT_PT)}`)
-  if (s.bold) parts.push('font-weight:700')
+  /*
+   * ⚠️ **没设字号就一个字节都不输出，让 span 自然继承外层**（2026-10-01 第五批第 1 条）。
+   *
+   * 原来这里是 `pxPt(s.fontSizePt ?? DEFAULT_FONT_PT)` —— 于是"这个节点没设字号"被当成
+   * "这个节点是 10.5pt"，**把外层元素已设好的字号整段吃掉**：
+   * 用户在元素上设 6pt，段落里那行字却还是 10.5pt。他截的图里那句
+   * 「同样是 6pt，文本段落元素比多维表格的字段大得多」就是这么来的。
+   *
+   * 上面那段注释写的本来就是"让 span 自然继承"，只有 font-size 这一行没照做 ⇒ 现在照做。
+   * 继承链两头都保证有字号：文本元素 = `textCss(el.style)`；表格单元格 = `<td>`（见 buildTableHtml）。
+   */
+  if (typeof s.fontSizePt === 'number') parts.push(`font-size:${pxPt(s.fontSizePt)}`)
+  if (s.bold) parts.push(`font-weight:${BOLD_FONT_WEIGHT}`)
   if (s.italic) parts.push('font-style:italic')
   const deco: string[] = []
   if (s.underline) deco.push('underline')
@@ -1175,9 +1191,16 @@ function buildTableHtml(
     widths = new Array(colCount).fill(colCount > 0 ? targetW / colCount : 0)
   }
 
-  const paddingMm = Math.max(0, finite(el.cellPaddingMm, 1))
-  const borderW = Math.max(0.05, finite(el.border?.widthPt, 0.5))
-  const borderColor = el.border?.color ?? '#d0d3d9'
+  /*
+   * ⚠️ 兜底值必须与画布**同一个来源**（2026-10-02 项目体检 P1）。
+   *
+   * 原来这里写的是 `1`（内边距）和 `0.5`（线宽），而画布那侧是 `1.5` / `0.75`
+   * ⇒ 缺省模板**在画布上和打印稿上不一样宽、不一样粗**。
+   * 现在两端都引用 `types.ts` 的常量 —— 要调就调一处。
+   */
+  const paddingMm = Math.max(0, finite(el.cellPaddingMm, DEFAULT_CELL_PADDING_MM))
+  const borderW = Math.max(0.05, finite(el.border?.widthPt, DEFAULT_TABLE_BORDER_PT))
+  const borderColor = el.border?.color ?? DEFAULT_TABLE_LINE
   const borderPx = `${round3((borderW * 96) / 72)}px`
   const mode = el.border?.mode ?? 'all'
 
@@ -1268,11 +1291,37 @@ function buildTableHtml(
             `border-left:${edges.left ? `${cpx} solid ${cc}` : 'none'};`
           : cellBorder
         colCursor += Math.max(1, Math.floor(finite(cell.colspan, 1)))
+        /*
+         * ⚠️ **单元格的字形（粗 / 斜 / 下划线 / 删除线）必须在这里输出**（2026-10-02 体检 P0-1）。
+         *
+         * 原来这段样式串只有 family / size / color / line-height / align —— 而画布端
+         * （`Canvas.tsx` 的 `<td>`）用的是 `textCss`，**会**输出 `font-weight` / `font-style` /
+         * `text-decoration`。于是：在单元格面板勾「加粗」，**画布上变粗、打印出来还是细的** ——
+         * 正是本项目反复出现的那种"设了没用"。
+         *
+         * 口径与 `textCss` 对齐：`bold ⇒ 700`、`italic`、`underline/strike` 合成 `text-decoration`。
+         */
+        const cs = cell.style ?? {}
+        const deco = [cs.underline ? 'underline' : '', cs.strike ? 'line-through' : ''].filter(Boolean).join(' ')
+        const glyphCss =
+          (cs.bold ? `;font-weight:${BOLD_FONT_WEIGHT}` : '') +
+          (cs.italic ? ';font-style:italic' : '') +
+          (deco ? `;text-decoration:${deco}` : '')
         return `<td${span}${rspan} style="${attr(
           `${edgeCss}${rowH}${bg}padding:${px(padMm)};box-sizing:border-box;${vAlignCss(cell.style?.vAlign)}` +
             `;font-family:${FONT_STACK};font-size:${pxPt(cell.style?.fontSizePt ?? DEFAULT_FONT_PT)}` +
-            `;color:${cell.style?.color ?? DEFAULT_COLOR};line-height:${cell.style?.lineHeight ?? DEFAULT_LINE_HEIGHT}` +
-            `;text-align:${cell.style?.align ?? 'left'};${TEXT_FLOW}`,
+            /*
+             * ⚠️ **固定行距优先**（2026-10-02 项目体检 P1）。
+             * 画布的 `textCss` 是 `lineHeightPt` 优先、其次 `lineHeight`；
+             * 打印端原来只读 `lineHeight` ⇒ 给单元格设"固定行距 N pt"后
+             * **画布按固定行距、打印回落到倍数行距**，两边的行高对不上。
+             */
+            `;color:${cell.style?.color ?? DEFAULT_COLOR};line-height:${
+              typeof cell.style?.lineHeightPt === 'number'
+                ? pxPt(cell.style.lineHeightPt)
+                : finite(cell.style?.lineHeight, DEFAULT_LINE_HEIGHT)
+            }` +
+            `;text-align:${cell.style?.align ?? 'left'}${glyphCss};${TEXT_FLOW}`,
         )}">${inner}</td>`
       })
       .join('')

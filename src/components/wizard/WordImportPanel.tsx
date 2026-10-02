@@ -40,6 +40,31 @@ export function WordImportPanel({ fields, kind, onDone, onCancel }: Props) {
   const [reportText, setReportText] = useState('')
   const [reportCounts, setReportCounts] = useState<{ ignored: number; degraded: number }>({ ignored: 0, degraded: 0 })
   const [fileName, setFileName] = useState('')
+  /**
+   * 兼容占位符写法（PRD **F3-15**，2026-10-02 接线）。
+   *
+   * ⚠️ 这个开关此前**只存在于代码里、没有任何入口**：`placeholders.ts` 里
+   * `mustache` / `bracket` 默认 `false`，而 `WordImportPanel` 调 `parseDocx` 时
+   * **从不传 `placeholder`** ⇒ 用 `{{字段}}` 或 `[字段]` 写的 Word 模板导入后
+   * **一个占位符都识别不出来**，且界面上连一句"支持哪些写法"的提示都没有。
+   */
+  const [compatSyntax, setCompatSyntax] = useState(false)
+  /**
+   * 自定义循环标签（PRD **E-2**，2026-10-02 接线）。
+   *
+   * ⚠️ 为什么需要它：官方的循环标签语法**至今没拿到真实样例** ——
+   * `loop.ts` 里那套 `TAG_PATTERNS`（`{{循环开始}}`、`{{#each}}`、`[[循环开始]]`、
+   * `【循环开始】`、`«循环开始»`）**全是按经验猜的**（代码注释自己承认）。
+   * 而在此之前，**用户没有任何办法告诉插件"我们的标签长这样"** ——
+   * 猜不中就只能眼睁睁看着循环区识别失败。
+   *
+   * ⚠️ 用户填的是**标签原文**（如 `{{开始循环}}`），不是正则 ——
+   * `loop.ts:107` 会 `escapeRe` 之后当字面量匹配。**别把这个细节漏给用户看**。
+   */
+  const [tagStart, setTagStart] = useState('')
+  const [tagEnd, setTagEnd] = useState('')
+  /** 记住用户选的文件：改了上面的开关要能**就地重解析**，不用让他重新选一遍文件 */
+  const [pickedFile, setPickedFile] = useState<File | null>(null)
   const [name, setName] = useState('')
   const [showReport, setShowReport] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -53,11 +78,46 @@ export function WordImportPanel({ fields, kind, onDone, onCancel }: Props) {
   }, [match])
 
   const handleFile = async (file: File): Promise<void> => {
+    setPickedFile(file)
+    await runParse(file, { compat: compatSyntax, tagStart, tagEnd })
+  }
+
+  /**
+   * 真正解析。**单独抽出来**是为了让"改了设置后重解析"能复用同一条链 ——
+   * 否则那段逻辑要么复制一份，要么用户得重新选文件（后者是明显的体验倒退）。
+   * ⚠️ 配置**显式传参**而不是从闭包读 state：改完设置立刻重解析时，
+   *    闭包里的 state 可能还是旧值（React 状态更新是异步的）。
+   */
+  const runParse = async (
+    file: File,
+    cfg: { compat: boolean; tagStart: string; tagEnd: string },
+  ): Promise<void> => {
     setError(null)
     setStage({ label: '准备中', progress: 0.05 })
     try {
+      /*
+       * ⚠️ **E-2**：把用户填的自定义标签传下去。空串不传 ——
+       * `loop.ts` 会把每一条 `extraStartTags` 都编译成正则去扫全文，
+       * 塞空串进去等于加了一条"匹配空字符串"的规则（命中一切）。
+       */
+      const start = cfg.tagStart.trim()
+      const end = cfg.tagEnd.trim()
       const res = await parseDocx(file, {
         fields,
+        /*
+         * ⚠️ F3-15：把开关真的传下去。
+         * `dollar` / `guillemet` 保持默认开启（它们是 PRD 的主推写法）；
+         * 这里只管那两个**兼容格式** —— 开了才认 `{{字段}}` / `[字段]`。
+         */
+        placeholder: { mustache: cfg.compat, bracket: cfg.compat },
+        ...(start || end
+          ? {
+              loopTags: {
+                ...(start ? { extraStartTags: [start] } : {}),
+                ...(end ? { extraEndTags: [end] } : {}),
+              },
+            }
+          : {}),
         onStage: (s) => setStage({ label: s.label, progress: s.progress }),
       })
       setIr(res.ir)
@@ -106,6 +166,76 @@ export function WordImportPanel({ fields, kind, onDone, onCancel }: Props) {
             </button>
           </div>
           <div className="app-section-body">
+            {/*
+              ⚠️ **F3-15 的入口**（2026-10-02 接线）。
+              放在拖放区**上方**：用户应该"先想清楚自己的模板用哪种写法，再选文件"。
+              若已有解析结果，改开关会**就地重解析**（不必重新选文件）。
+            */}
+            <label className="wiz-compat">
+              <input
+                type="checkbox"
+                checked={compatSyntax}
+                onChange={(e) => {
+                  const next = e.target.checked
+                  setCompatSyntax(next)
+                  if (pickedFile) void runParse(pickedFile, { compat: next, tagStart, tagEnd })
+                }}
+              />
+              <span>
+                兼容 <code>{'{{字段}}'}</code> 与 <code>[字段]</code> 写法
+              </span>
+            </label>
+            <p className="wiz-hint wiz-compat-note">
+              默认只识别 <code>{'${字段}'}</code> 与 <code>«字段»</code>；
+              如果模板里是双大括号或方括号形式，勾上这一项。
+              <strong>方括号在正文里很常见，开启后可能误判</strong>，导入后建议先看预览再保存。
+            </p>
+            {/*
+              ⚠️ **E-2 的入口**：自定义循环标签。
+              与上面的 F3-15 同属"导入前的设置"，所以放在一起。
+              用 `<details>` 折叠：**多数用户不需要它**（内置那套已覆盖常见写法），
+              展开着会喧宾夺主；而真正需要的人（自家模板用了私有标签）会主动去找。
+              ⚠️ 触发时机用 **`onBlur`** 而不是 `onChange`：后者会在每敲一个字时重解析整个 docx。
+              ⚠️ 回填值取自 `e.target.value` 而不是 state —— React 状态更新是异步的，
+                  在 `onBlur` 里读 state 可能还是上一次的值。
+            */}
+            <details className="wiz-custom-tags">
+              <summary>循环区识别不准？手动指定标签</summary>
+              <div className="wiz-custom-tags-body">
+                <label className="wiz-custom-tags-row">
+                  <span>循环开始标签</span>
+                  <input
+                    type="text"
+                    value={tagStart}
+                    placeholder="例如 {{开始循环}}"
+                    onChange={(e) => setTagStart(e.target.value)}
+                    onBlur={(e) => {
+                      const v = e.target.value
+                      setTagStart(v)
+                      if (pickedFile) void runParse(pickedFile, { compat: compatSyntax, tagStart: v, tagEnd })
+                    }}
+                  />
+                </label>
+                <label className="wiz-custom-tags-row">
+                  <span>循环结束标签</span>
+                  <input
+                    type="text"
+                    value={tagEnd}
+                    placeholder="例如 {{结束循环}}"
+                    onChange={(e) => setTagEnd(e.target.value)}
+                    onBlur={(e) => {
+                      const v = e.target.value
+                      setTagEnd(v)
+                      if (pickedFile) void runParse(pickedFile, { compat: compatSyntax, tagStart, tagEnd: v })
+                    }}
+                  />
+                </label>
+                <p className="wiz-hint">
+                  按<strong>原文</strong>填（不用写正则），插件会把它当成一对标记圈出重复区域。
+                  留空则只用内置的常见标签。
+                </p>
+              </div>
+            </details>
             <div
               className="wiz-drop"
               onClick={() => inputRef.current?.click()}

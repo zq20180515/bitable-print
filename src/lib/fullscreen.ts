@@ -55,6 +55,12 @@ export async function enterFullscreen(): Promise<FullscreenSupport> {
   if (support !== 'available') return support
   try {
     await document.documentElement.requestFullscreen()
+    /*
+     * ⚠️ **进全屏后立刻把 Esc 锁过来**（2026-10-01 第五批第 2 条）。
+     * 顺序不能反 —— Keyboard Lock 只在全屏态下有效。
+     * 返回值这里不使用：锁不到也不影响任何既有行为（长按退出的判定在 `EditorOverlay`）。
+     */
+    await lockEscape()
     return 'available'
   } catch {
     // 探测说可以、实际仍被拒（少见：宿主在调用瞬间收回了策略）⇒ 如实说"拿不到"
@@ -70,6 +76,72 @@ export async function exitFullscreen(): Promise<void> {
     }
   } catch {
     /* 退出失败没有可做的事：容器内全屏仍然在，用户还能继续编辑 */
+  }
+  await unlockEscape()
+}
+
+/**
+ * 把 Esc 从浏览器手里"**借**"过来（Keyboard Lock API，Chrome 68+）。
+ *
+ * ── 为什么需要它（2026-10-01 第五批第 2 条）──────────────────────────────
+ *
+ * 用户原话：「我更想保留当前的真全屏效果……但你可以尝试一下 Keyboard Lock API，
+ * 启用键盘锁定后，单击 ESC 不会退出全屏，**长按 ESC（约 2 秒）才会退出**」。
+ *
+ * 问题背景：真全屏下的 Esc 是**浏览器行为**（`preventDefault` 拦不住），
+ * 一按就退全屏 ⇒ iframe 视口缩回侧边栏 ⇒ 用户看到"ESC 把我缩回小窗了"，
+ * 而我们的状态还以为"盖满着"，按钮文字随之错位。
+ *
+ * Keyboard Lock 正是为这种场景设计的：**全屏期间把 Esc 交还给页面**。
+ *
+ * ⚠️ **两个硬前提，缺一就无声失败**（所以这里只返回 `boolean`、绝不抛）：
+ *   1. **必须在全屏态下调用** —— 所以它紧跟在 `requestFullscreen()` 之后；
+ *   2. **iframe 需要 `allow="keyboard-lock"`** —— 宿主（飞书）不给就没有这个 API 或多半被拒。
+ *   ⇒ 拿不到就当没这回事：`EditorOverlay` 会退回"短按逐级退、长按 2 秒退全屏"的
+ *     纯 JS 相对时间方案（那个方案在 lock 成功时同样生效）。
+ */
+export async function lockEscape(): Promise<boolean> {
+  const kb = (navigator as unknown as { keyboard?: { lock?: (keys: string[]) => Promise<void> } }).keyboard
+  if (!kb || typeof kb.lock !== 'function') {
+    lastLockOk = false
+    return false
+  }
+  try {
+    await kb.lock(['Escape'])
+    lastLockOk = true
+    return true
+  } catch {
+    /* 宿主没给权限：静默降级，不影响任何既有行为 */
+    lastLockOk = false
+    return false
+  }
+}
+
+/**
+ * 最近一次 Keyboard Lock 的结果（2026-10-01）。
+ *
+ * ⚠️ **为什么要把这个状态暴露出来**：它决定了"**单击 Esc 会不会退出真全屏**"这件
+ * 用户直接能感觉到的事 —— 而失败是**完全静默**的（宿主 iframe 没给
+ * `allow="keyboard-lock"` 时既不报错、也不抛，只是 lock 不生效）。
+ * 用户第一次反馈"Keyboard Lock 似乎不生效"时，我们手里没有任何证据可看，
+ * 只能靠猜 —— 这个状态就是那份证据（显示在全屏按钮的 tooltip 上）。
+ */
+let lastLockOk: boolean | null = null
+
+/** `locked`=借到 Esc｜`denied`=API 在但被拒（多半是 iframe 缺 allow 权限）｜`idle`=还没试过 */
+export function escapeLockState(): 'locked' | 'denied' | 'idle' {
+  if (lastLockOk === null) return 'idle'
+  return lastLockOk ? 'locked' : 'denied'
+}
+
+/** 交还 Esc（退出全屏时一定要调，否则用户离开编辑器后浏览器里 Esc 也会被吃掉） */
+export async function unlockEscape(): Promise<void> {
+  const kb = (navigator as unknown as { keyboard?: { unlock?: () => void } }).keyboard
+  if (!kb || typeof kb.unlock !== 'function') return
+  try {
+    kb.unlock()
+  } catch {
+    /* 忽略：没锁成功时 unlock 也没意义 */
   }
 }
 
@@ -96,7 +168,10 @@ export function fullscreenStatusText(
     return {
       ok: true,
       text: '全屏',
-      detail: '已进入浏览器级全屏（按 Esc 退出全屏，仍会留在插件内的全屏画布里）',
+      detail:
+        escapeLockState() === 'locked'
+          ? '已进入浏览器级全屏；Esc 已锁定 ⇒ 单击只逐级取消选中，长按约 2 秒才退出全屏'
+          : '已进入浏览器级全屏；Esc **未能锁定**（宿主 iframe 未开放 keyboard-lock 权限）⇒ 单击 Esc 仍会退出全屏',
     }
   }
   switch (support) {

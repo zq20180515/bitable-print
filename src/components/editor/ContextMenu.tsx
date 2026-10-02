@@ -36,6 +36,35 @@ export interface CtxItem {
   separator?: boolean
   /** 一级子菜单（对齐 ▸ / 排列 ▸） */
   sub?: CtxItem[]
+  /**
+   * **数字输入项**（2026-10-01 第五批 · 右键直接调字号）。
+   *
+   * 用户原话：「在所有可以调整字符大小的字段、元素的右键菜单中，增加调整字符大小的功能，
+   * **可以直接输入**」——"直接输入"意味着菜单里得有真的输入框，不是几个预设值。
+   *
+   * 渲染成「标签 + 数字输入框」，回车或失焦提交。
+   * ⚠️ **提交后不关菜单**：用户常常要连着试几个值，每次都得"重新右键 → 再输入"太烦。
+   */
+  input?: {
+    value: number
+    min?: number
+    max?: number
+    step?: number
+    suffix?: string
+    /** 回车 / 失焦时提交（已经夹进 `[min, max]`、并挡掉 NaN） */
+    onCommit(v: number): void
+    /**
+     * ⚠️ **每次改动立刻回调**（2026-10-01 用户要求"实时预览"）。
+     *
+     * 用户原话：「字号的设置改为**实时生效**，即点击输入框中的上下调整按钮后，点一下，
+     * 画布中的元素字段就立即调整到对应的大小，这样方便实时预览」。
+     *
+     * 与 `onCommit` 的分工：`onInput` 负责"看得见"（每按一下箭头就变），
+     * `onCommit` 负责"收尾"（回车/失焦时定稿，也用于做撤销步的合并）。
+     * 两个都给 ⇒ 调值过程可预览、最终状态可回退。
+     */
+    onInput?(v: number): void
+  }
 }
 
 export interface ContextMenuProps {
@@ -108,6 +137,70 @@ export function ContextMenu({ x, y, items, onPick, onClose }: ContextMenuProps):
   const renderItems = (list: CtxItem[]): ReactNode[] =>
     list.map((it, i) => {
       if (it.separator) return <div key={`sep-${i}`} className="bp-ctx__sep" role="separator" />
+      /*
+       * ⚠️ **输入项要抢在普通项之前处理**（2026-10-01 第五批）。
+       *
+       * 它不能用 `<button>` 包着 —— 按钮里放 `<input>` 是**嵌套交互元素**（HTML 不允许，
+       * 点输入框会先触发按钮行为）。所以单独一条渲染路径，并与 `.bp-ctx__row` 平级。
+       *
+       * ⚠️ 三个事件都必须 `stopPropagation`：本组件在捕获阶段挂了一个"点任何地方都关菜单"
+       * 的监听器（见上面 `onDown`），不拦住的话**鼠标一点进输入框菜单就没了** ⇒ 功能不可用。
+       */
+      if (it.input) {
+        const cfg = it.input
+        /*
+         * 夹进 `[min, max]` 并挡掉 NaN。
+         * ⚠️ 空串与"半成品"（只输入了 `-` 或 `.`）一律返回 `null` 而不是 0 ——
+         * 否则用户删空输入框准备重新打字时，元素字号会先被拽到最小值。
+         */
+        const clamp = (raw: string): number | null => {
+          if (raw.trim() === '') return null
+          const n = Number(raw)
+          if (!Number.isFinite(n)) return null
+          const lo = cfg.min ?? -Infinity
+          const hi = cfg.max ?? Infinity
+          return Math.min(hi, Math.max(lo, n))
+        }
+        const commit = (raw: string): void => {
+          const v = clamp(raw)
+          if (v !== null) cfg.onCommit(v)
+        }
+        return (
+          <div
+            key={it.id}
+            className="bp-ctx__row bp-ctx__row--input"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="bp-ctx__label">{it.label}</span>
+            <input
+              type="number"
+              className="bp-ctx__input"
+              defaultValue={String(cfg.value)}
+              min={cfg.min}
+              max={cfg.max}
+              step={cfg.step ?? 0.5}
+              /*
+               * ⚠️ **实时生效**（2026-10-01 用户要求）：点上下箭头、或敲字时立刻回调。
+               * 这样画布上的元素**边调边看**，不必"改完回车再看对不对"。
+               */
+              onChange={(e) => {
+                const v = clamp(e.target.value)
+                if (v !== null) cfg.onInput?.(v)
+              }}
+              onKeyDown={(e) => {
+                /* ⚠️ 放行 Esc 让它能退出输入（但不冒泡给浮层的"逐级退"，否则会连带关掉菜单） */
+                e.stopPropagation()
+                if (e.key === 'Enter') {
+                  commit((e.target as HTMLInputElement).value)
+                }
+              }}
+              onBlur={(e) => commit(e.target.value)}
+            />
+            {cfg.suffix ? <span className="bp-ctx__hint">{cfg.suffix}</span> : null}
+          </div>
+        )
+      }
       const hasSub = !!it.sub?.length
       return (
         /*
